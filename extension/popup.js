@@ -84,7 +84,7 @@ async function updateUI() {
         h2.textContent = "Connect Your Zoho Account";
 
         const p = document.createElement("p");
-        p.textContent = "Connect your Zoho Mail account to view your unread messages directly from your browser.";
+        p.textContent = "Connect your Zoho Mail account to view your unread messages directly from your browser toolbar.";
 
         const btn = document.createElement("button");
         btn.id = "connectBtn";

@@ -3,13 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Mail Checker for Zoho - A lightweight browser extension that shows unread Zoho Mail counts, recent messages, and notifications without opening Zoho Mail.">
+    <meta name="description" content="Mail Checker for Zoho is a browser extension that shows Zoho Mail unread count, recent emails, and notifications without opening your inbox.">
     <meta name="google-site-verification" content="bxz-row26zb_RKR9yb6ClVkk1XhKHNNWFrXzANESGbg" />
-    <title>Mail Checker for Zoho Mail – Browser Extension</title>
+    <title>Mail Checker for Zoho – Zoho Mail Unread Count & Notifications</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Mail Checker for Zoho",
+  "applicationCategory": "BrowserExtension",
+  "operatingSystem": "Chrome, Firefox",
+  "description": "Browser extension that shows Zoho Mail unread count and notifications without opening Zoho Mail.",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
     <style>
         :root {
             --brand-primary: #4F46E5;
@@ -94,7 +109,7 @@
     <nav class="max-w-6xl mx-auto px-6 py-6 flex justify-between items-center">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-md overflow-hidden p-1.5 border border-slate-100">
-                <img src="https://iili.io/fSiZRvp.png" alt="Zoho Mail Checker Icon" class="w-full h-full object-contain">
+                <img src="extension/icons/icon-128.png" alt="Zoho Mail Checker Icon" class="w-full h-full object-contain">
             </div>
             <span class="font-bold text-lg tracking-tight">Mail Checker for Zoho</span>
         </div>
@@ -118,7 +133,7 @@
         <div class="flex justify-center mb-8">
             <div class="float-logo w-24 h-24 md:w-32 md:h-32 bg-white rounded-[2rem] shadow-2xl flex items-center justify-center p-5 md:p-6 border border-white/50 relative">
                 <div class="absolute inset-0 bg-indigo-500/5 blur-2xl rounded-full"></div>
-                <img src="https://iili.io/fSiZRvp.png" alt="Mail Checker for Zoho" class="w-full h-full object-contain relative z-10">
+                <img src="extension/icons/icon-128.png" alt="Mail Checker for Zoho" class="w-full h-full object-contain relative z-10">
             </div>
         </div>
 
@@ -127,9 +142,12 @@
         </div>
         
         <h1 class="text-5xl md:text-6xl font-extrabold mb-6 tracking-tight leading-[1.1]">
-            Mail Checker for Zoho Mail<br> 
-            <span class="gradient-text">One Click Away.</span>
-        </h1>
+  Mail Checker for Zoho
+</h1>
+<p class="gradient-text font-bold text-xl mb-4">
+  One Click Away.
+</p>
+
         
         <p class="text-lg md:text-xl text-slate-600 mb-10 max-w-2xl mx-auto leading-relaxed">
             <strong>Mail Checker for Zoho</strong> is a lightweight extension that shows unread counts, recent messages, and notifications — without opening Zoho Mail.
@@ -142,8 +160,8 @@
             <a href="https://chromewebstore.google.com/detail/mail-checker-for-zoho/affjmfagkgljcidafnkhhjfaaiidincj" target="_blank" class="btn-primary w-full md:w-auto px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-3">
                 <span>🌐</span> Chrome Web Store
             </a>
-            <a href="#" class="w-full md:w-auto px-8 py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold cursor-not-allowed flex items-center justify-center gap-3">
-                <span>📦</span> Edge (Coming Soon)
+            <a href="https://microsoftedge.microsoft.com/addons/detail/mail-checker-for-zoho/eomndclhhjdkfophfbigbklfkmlgjehp" target="_blank" class="btn-primary w-full md:w-auto px-8 py-4 bg-[#0078D7] text-white rounded-2xl font-bold flex items-center justify-center gap-3">
+                <span>📦</span> Microsoft Edge
             </a>
         </div>
     </header>
@@ -192,16 +210,16 @@
     <!-- Screenshots Section -->
     <section id="screenshots" class="max-w-6xl mx-auto px-6 py-20">
         <h2 class="text-3xl font-extrabold text-center mb-12">Screenshots</h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div class="screenshot-item text-center">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- <div class="screenshot-item text-center">
                 <div class="glass-card rounded-2xl p-4 mb-4 border border-white">
                     <img src="screenshots/badge.png" alt="Toolbar Badge" class="rounded-lg shadow-sm mx-auto" onerror="this.src='https://placehold.co/600x400/indigo/white?text=Toolbar+Badge'">
                 </div>
                 <h3 class="font-bold text-slate-700">Unread Count Badge</h3>
-            </div>
+            </div> -->
             <div class="screenshot-item text-center">
                 <div class="glass-card rounded-2xl p-4 mb-4 border border-white">
-                    <img src="screenshots/popup.png" alt="Popup View" class="rounded-lg shadow-sm mx-auto" onerror="this.src='https://placehold.co/600x400/indigo/white?text=Mail+List+Preview'">
+                    <img src="screenshots/main.png" alt="Popup View" class="rounded-lg shadow-sm mx-auto" onerror="this.src='https://placehold.co/600x400/indigo/white?text=Mail+List+Preview'">
                 </div>
                 <h3 class="font-bold text-slate-700">Mail List Preview</h3>
             </div>
@@ -301,7 +319,7 @@
         <div class="flex flex-col md:flex-row justify-between items-center gap-8">
             <div class="text-center md:text-left flex items-center gap-4">
                 <div class="w-12 h-12 bg-white rounded-xl shadow-sm p-2">
-                    <img src="https://iili.io/fSiZRvp.png" alt="Logo" class="w-full h-full object-contain">
+                    <img src="extension/icons/icon-128.png" alt="Logo" class="w-full h-full object-contain">
                 </div>
                 <div>
                     <div class="font-bold text-lg">Mail Checker for Zoho</div>

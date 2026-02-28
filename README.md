@@ -19,8 +19,8 @@
   <a href="https://chromewebstore.google.com/detail/mail-checker-for-zoho/affjmfagkgljcidafnkhhjfaaiidincj">
     <img src="https://img.shields.io/badge/Chrome-Download-blue?logo=googlechrome&logoColor=white" alt="Chrome Web Store">
   </a>
-  <a href="#">
-    <img src="https://img.shields.io/badge/Edge-Coming%20Soon-gray?logo=microsoftedge" alt="Microsoft Edge">
+  <a href="https://microsoftedge.microsoft.com/addons/detail/mail-checker-for-zoho/eomndclhhjdkfophfbigbklfkmlgjehp">
+    <img src="https://img.shields.io/badge/Edge-Download-0078D7?logo=microsoftedge&logoColor=white" alt="Microsoft Edge">
   </a>
 </p>
 
@@ -45,7 +45,7 @@
 [![Get it for Chrome](https://img.shields.io/badge/Chrome-Download-blue?style=for-the-badge&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/mail-checker-for-zoho/affjmfagkgljcidafnkhhjfaaiidincj)
 
 ### Edge
-Coming soon to Microsoft Edge Add-ons!
+[![Get it for Edge](https://img.shields.io/badge/Edge-Download-0078D7?style=for-the-badge&logo=microsoftedge&logoColor=white)](https://microsoftedge.microsoft.com/addons/detail/mail-checker-for-zoho/eomndclhhjdkfophfbigbklfkmlgjehp)
 
 ## 🖼️ Screenshots
 
