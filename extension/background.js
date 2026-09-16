@@ -1,7 +1,9 @@
 const api = typeof browser !== "undefined" ? browser : chrome;
 
 const NOTIFICATION_ID = "new-mail-notify";
+const EVENTS_ALARM = "ensure-events-connected";
 let eventSocket = null;
+let eventSocketConnecting = false;
 
 // Poll mutex
 let pollInProgress = false;
@@ -26,7 +28,13 @@ api.runtime.onInstalled.addListener(async () => {
         console.log('Existing session ID:', session_id);
     }
 
+    api.alarms.create(EVENTS_ALARM, { periodInMinutes: 0.5 });
     checkMail(true);
+    connectEvents();
+});
+
+api.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === EVENTS_ALARM) connectEvents();
 });
 
 // Listen for JWT storage to activate live mail events after OAuth.
@@ -64,6 +72,8 @@ async function checkMail(force = false, retryCount = 0) {
             updateBadge(""); // New user: show nothing on icon
             return;
         }
+
+        connectEvents();
 
         const backendUrl = await getBackendUrl();
         const url = `${backendUrl}/mail/unread${force ? "?refresh=true" : ""}`;
@@ -219,6 +229,7 @@ function handleNotification(current, previous, lastNotifyTime) {
 // Listen for messages from popup (e.g., "manual refresh" or "set token")
 api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.action === "refresh") {
+        connectEvents();
         checkMail(true).then(() => {
             sendResponse({ status: "refreshed" });
         });
@@ -259,8 +270,14 @@ async function getBackendUrl() {
 }
 
 async function connectEvents() {
+    if (eventSocketConnecting || eventSocket?.readyState === WebSocket.OPEN || eventSocket?.readyState === WebSocket.CONNECTING) return;
+
+    eventSocketConnecting = true;
     const { jwt } = await api.storage.local.get("jwt");
-    if (!jwt || eventSocket?.readyState === WebSocket.OPEN || eventSocket?.readyState === WebSocket.CONNECTING) return;
+    if (!jwt) {
+        eventSocketConnecting = false;
+        return;
+    }
 
 	api.storage.local.set({ eventsConnected: false });
     const backendUrl = await getBackendUrl();
@@ -268,6 +285,7 @@ async function connectEvents() {
     eventsUrl.protocol = eventsUrl.protocol === "https:" ? "wss:" : "ws:";
     eventsUrl.searchParams.set("access_token", jwt);
     eventSocket = new WebSocket(eventsUrl);
+	eventSocketConnecting = false;
 	eventSocket.onopen = () => {
 		console.log("WebSocket connected");
 		api.storage.local.set({ eventsConnected: true });
@@ -283,6 +301,7 @@ async function connectEvents() {
 		console.log("WebSocket disconnected");
 		api.storage.local.set({ eventsConnected: false });
         eventSocket = null;
+        eventSocketConnecting = false;
         setTimeout(connectEvents, 5000);
     };
     eventSocket.onerror = () => eventSocket.close();
