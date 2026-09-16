@@ -22,7 +22,7 @@ Configure your Zoho webhook integration to call:
 
 `POST https://your-server.example/webhooks/zoho/{accountID}`
 
-The `{accountID}` value is saved during OAuth and displayed in the extension beneath the account email. Zoho sends `X-Hook-Secret` only with the first webhook request. The server saves this secret, encrypted, in `TOKEN_STORE_PATH` and validates each `X-Hook-Signature` as a base64 HMAC-SHA256 digest of the raw request body. The endpoint returns `204 No Content` for a known account, `401` for an invalid signature, and `404` for an unknown account.
+The `{accountID}` value is saved during OAuth and displayed in the extension beneath the account email. Zoho sends `X-Hook-Secret` only with the first webhook request for each account. The server saves each account's secret, encrypted, in `TOKEN_STORE_PATH` and validates each `X-Hook-Signature` as a base64 HMAC-SHA256 digest of the raw request body. The endpoint returns `204 No Content` for a known account, `401` for an invalid signature, and `404` for an unknown account.
 
 The webhook endpoint must be publicly reachable through HTTPS. This server does not poll mail automatically; the existing manual refresh remains available in the extension.
 

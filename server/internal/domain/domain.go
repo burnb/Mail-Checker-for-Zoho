@@ -23,8 +23,8 @@ type CredentialRepository interface {
 	FindByAccountID(context.Context, string) (string, error)
 }
 type WebhookSecretRepository interface {
-	WebhookSecret(context.Context) (string, error)
-	SaveWebhookSecret(context.Context, string) error
+	WebhookSecret(context.Context, string) (string, error)
+	SaveWebhookSecret(context.Context, string, string) error
 }
 type TokenService interface {
 	Issue(map[string]any) (string, error)

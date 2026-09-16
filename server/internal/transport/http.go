@@ -91,16 +91,17 @@ func (h *Handler) zohoWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid webhook body", http.StatusBadRequest)
 		return
 	}
-	if err := h.validateWebhookSignature(r.Context(), r.Header.Get("X-Hook-Secret"), r.Header.Get("X-Hook-Signature"), body); err != nil {
+	accountID := r.PathValue("accountID")
+	if err := h.validateWebhookSignature(r.Context(), accountID, r.Header.Get("X-Hook-Secret"), r.Header.Get("X-Hook-Signature"), body); err != nil {
 		log.Printf("Zoho webhook rejected: %v", err)
 		http.Error(w, "invalid webhook signature", http.StatusUnauthorized)
 		return
 	}
-	if err := h.webhooks.MailReceived(r.Context(), r.PathValue("accountID")); err != nil {
+	if err := h.webhooks.MailReceived(r.Context(), accountID); err != nil {
 		http.Error(w, "unknown account", http.StatusNotFound)
 		return
 	}
-	log.Printf("Zoho webhook accepted for account %s", r.PathValue("accountID"))
+	log.Printf("Zoho webhook accepted for account %s", accountID)
 	w.WriteHeader(http.StatusNoContent)
 }
 func (h *Handler) startAuth(w http.ResponseWriter, r *http.Request) {
@@ -214,8 +215,8 @@ func (h *Handler) cors(next http.Handler) http.Handler {
 	})
 }
 
-func (h *Handler) validateWebhookSignature(ctx context.Context, receivedSecret, signature string, body []byte) error {
-	secret, err := h.webhookSecrets.WebhookSecret(ctx)
+func (h *Handler) validateWebhookSignature(ctx context.Context, accountID, receivedSecret, signature string, body []byte) error {
+	secret, err := h.webhookSecrets.WebhookSecret(ctx, accountID)
 	if err != nil {
 		return err
 	}
@@ -223,7 +224,7 @@ func (h *Handler) validateWebhookSignature(ctx context.Context, receivedSecret, 
 		if receivedSecret == "" {
 			return errors.New("missing X-Hook-Secret while initializing webhook")
 		}
-		if err := h.webhookSecrets.SaveWebhookSecret(ctx, receivedSecret); err != nil {
+		if err := h.webhookSecrets.SaveWebhookSecret(ctx, accountID, receivedSecret); err != nil {
 			return err
 		}
 		secret = receivedSecret

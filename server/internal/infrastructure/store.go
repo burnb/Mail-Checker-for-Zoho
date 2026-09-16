@@ -16,16 +16,16 @@ import (
 )
 
 type FileCredentialStore struct {
-	mu            sync.RWMutex
-	path          string
-	block         cipher.Block
-	records       map[string]domain.Credential
-	webhookSecret string
+	mu             sync.RWMutex
+	path           string
+	block          cipher.Block
+	records        map[string]domain.Credential
+	webhookSecrets map[string]string
 }
 
 type persistedStore struct {
-	Credentials   map[string]domain.Credential `json:"credentials"`
-	WebhookSecret string                       `json:"webhookSecret"`
+	Credentials    map[string]domain.Credential `json:"credentials"`
+	WebhookSecrets map[string]string            `json:"webhookSecrets"`
 }
 
 func NewFileCredentialStore(path, key string) (*FileCredentialStore, error) {
@@ -33,7 +33,7 @@ func NewFileCredentialStore(path, key string) (*FileCredentialStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	store := &FileCredentialStore{path: path, block: block, records: map[string]domain.Credential{}}
+	store := &FileCredentialStore{path: path, block: block, records: map[string]domain.Credential{}, webhookSecrets: map[string]string{}}
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return store, nil
@@ -51,12 +51,12 @@ func NewFileCredentialStore(path, key string) (*FileCredentialStore, error) {
 		}
 	} else {
 		store.records = persisted.Credentials
-		if persisted.WebhookSecret != "" {
-			secret, err := store.decrypt(persisted.WebhookSecret)
+		for accountID, encryptedSecret := range persisted.WebhookSecrets {
+			secret, err := store.decrypt(encryptedSecret)
 			if err != nil {
 				return nil, err
 			}
-			store.webhookSecret = secret
+			store.webhookSecrets[accountID] = secret
 		}
 	}
 	for id, credential := range store.records {
@@ -85,15 +85,15 @@ func (s *FileCredentialStore) persist() error {
 		record.RefreshToken = encrypted
 		persisted[id] = record
 	}
-	storedSecret := ""
-	if s.webhookSecret != "" {
-		var err error
-		storedSecret, err = s.encrypt(s.webhookSecret)
+	storedSecrets := map[string]string{}
+	for accountID, secret := range s.webhookSecrets {
+		encryptedSecret, err := s.encrypt(secret)
 		if err != nil {
 			return err
 		}
+		storedSecrets[accountID] = encryptedSecret
 	}
-	data, err := json.Marshal(persistedStore{Credentials: persisted, WebhookSecret: storedSecret})
+	data, err := json.Marshal(persistedStore{Credentials: persisted, WebhookSecrets: storedSecrets})
 	if err != nil {
 		return err
 	}
@@ -121,15 +121,15 @@ func (s *FileCredentialStore) FindByAccountID(_ context.Context, accountID strin
 	}
 	return "", errors.New("credential not found")
 }
-func (s *FileCredentialStore) WebhookSecret(_ context.Context) (string, error) {
+func (s *FileCredentialStore) WebhookSecret(_ context.Context, accountID string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.webhookSecret, nil
+	return s.webhookSecrets[accountID], nil
 }
-func (s *FileCredentialStore) SaveWebhookSecret(_ context.Context, secret string) error {
+func (s *FileCredentialStore) SaveWebhookSecret(_ context.Context, accountID, secret string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.webhookSecret = secret
+	s.webhookSecrets[accountID] = secret
 	return s.persist()
 }
 func (s *FileCredentialStore) encrypt(value string) (string, error) {
