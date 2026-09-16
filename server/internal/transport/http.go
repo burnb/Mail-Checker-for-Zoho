@@ -228,7 +228,8 @@ func (h *Handler) mailError(w http.ResponseWriter, err error) {
 		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	http.Error(w, "Zoho Mail request failed", 502)
+	log.Printf("Zoho Mail request failed: %v", err)
+	http.Error(w, "Zoho Mail request failed: "+err.Error(), http.StatusBadGateway)
 }
 func (h *Handler) validExtensionCallback(callback string) bool {
 	parsed, err := url.Parse(callback)
