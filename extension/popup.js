@@ -71,12 +71,13 @@ async function updateStatus() {
 
 // Update UI state
 async function updateUI() {
-    const data = await api.storage.local.get(["lastUnread", "authError", "jwt", "accountEmail"]);
+    const data = await api.storage.local.get(["lastUnread", "authError", "jwt", "accountEmail", "accountId"]);
 
     const userBar = document.getElementById("userBar");
     const mainContent = document.getElementById("mainContent");
     const userEmail = document.getElementById("userEmail");
     const userAvatar = document.getElementById("userAvatar");
+    const accountId = document.getElementById("accountId");
     const unreadBadge = document.getElementById("unreadBadge");
 
     if (!data.jwt) {
@@ -201,6 +202,7 @@ async function updateUI() {
                 userAvatar.textContent = initial; // Reset content if complex
             }
         }
+        accountId.textContent = data.accountId ? `ID: ${data.accountId}` : "";
 
         // Update unread badge
         const count = data.lastUnread !== undefined ? data.lastUnread : "--";
@@ -257,7 +259,8 @@ async function loadList(folderId = null) {
         if (!folderId) {
             await api.storage.local.set({
                 lastItems: data.items,
-                accountEmail: data.account?.email
+                accountEmail: data.account?.email,
+                accountId: data.account?.id
             });
         }
 

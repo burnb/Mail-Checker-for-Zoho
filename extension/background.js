@@ -108,7 +108,7 @@ async function checkMail(force = false, retryCount = 0) {
 
         if (!res.ok) {
             // Non-auth error (500, 503, etc.) - restore previous badge, don't show "?"
-            console.error("Backend error:", res.status);
+            console.error("Backend error:", res.status, await res.text());
             updateBadge(badgeState.text, badgeState.color);
             return;
         }

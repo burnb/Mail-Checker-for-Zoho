@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"mail-checker-server/internal/application"
 	"mail-checker-server/internal/domain"
@@ -64,9 +65,21 @@ func (h *Handler) eventsSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer connection.Close()
-	for event := range h.events.Subscribe(r.Context(), userID) {
-		if err := connection.WriteMessage(websocket.TextMessage, []byte(event)); err != nil {
-			return
+	log.Printf("WebSocket connected for user %s", userID)
+	defer log.Printf("WebSocket disconnected for user %s", userID)
+	events := h.events.Subscribe(r.Context(), userID)
+	ping := time.NewTicker(25 * time.Second)
+	defer ping.Stop()
+	for {
+		select {
+		case event := <-events:
+			if err := connection.WriteMessage(websocket.TextMessage, []byte(event)); err != nil {
+				return
+			}
+		case <-ping.C:
+			if err := connection.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second)); err != nil {
+				return
+			}
 		}
 	}
 }
@@ -80,6 +93,7 @@ func (h *Handler) zohoWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown account", http.StatusNotFound)
 		return
 	}
+	log.Printf("Zoho webhook accepted for account %s", r.PathValue("accountID"))
 	w.WriteHeader(http.StatusNoContent)
 }
 func (h *Handler) startAuth(w http.ResponseWriter, r *http.Request) {
@@ -157,7 +171,12 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, userID string) {
 		h.mailError(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"items": messages, "account": map[string]string{"email": email}})
+	accountID, err := h.mail.AccountID(r.Context(), userID)
+	if err != nil {
+		h.mailError(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"items": messages, "account": map[string]string{"email": email, "id": accountID}})
 }
 func (h *Handler) folders(w http.ResponseWriter, r *http.Request, userID string) {
 	folders, err := h.mail.Folders(r.Context(), userID)

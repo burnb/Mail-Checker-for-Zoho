@@ -109,8 +109,16 @@
       color: var(--text-main);
       word-break: break-all;
     }
+    .account-id {
+      font-size: 11px;
+      color: var(--text-sub);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .account-meta { 
       display: flex; 
+      flex-direction: column;
       align-items: center;
       gap: 10px;
       min-width: 0; 
@@ -423,6 +431,7 @@
       <div class="user-avatar" id="userAvatar">--<div class="status-indicator"></div></div>
       <div class="account-meta">
         <div class="user-email" id="userEmail"></div>
+        <div class="account-id" id="accountId"></div>
         <select class="folder-select" id="folderSelect">
           <option value="inbox">Inbox</option>
         </select>

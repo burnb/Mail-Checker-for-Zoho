@@ -98,6 +98,13 @@ func (s *MailService) AccountEmail(ctx context.Context, userID string) (string, 
 	}
 	return credential.Email, nil
 }
+func (s *MailService) AccountID(ctx context.Context, userID string) (string, error) {
+	credential, err := s.credentials.Find(ctx, userID)
+	if err != nil {
+		return "", ErrUnauthorized
+	}
+	return credential.AccountID, nil
+}
 func (s *MailService) Folders(ctx context.Context, userID string) ([]domain.Folder, error) {
 	access, credential, err := s.access(ctx, userID)
 	if err != nil {

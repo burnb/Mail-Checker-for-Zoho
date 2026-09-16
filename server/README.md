@@ -26,6 +26,8 @@ Set `X-Webhook-Signature` to the lowercase hexadecimal HMAC-SHA256 of the raw re
 
 The webhook endpoint must be publicly reachable through HTTPS. This server does not poll mail automatically; the existing manual refresh remains available in the extension.
 
+To confirm delivery, inspect the server logs after a new email: a successful request logs `Zoho webhook accepted for account ...`. A `401` means the HMAC signature differs from `WEBHOOK_SECRET`; a `404` means the URL's account ID is not the account saved during OAuth.
+
 ## Run locally
 
 1. Create a Zoho OAuth client and register `http://localhost:8080/auth/zoho/callback` as its redirect URI.
