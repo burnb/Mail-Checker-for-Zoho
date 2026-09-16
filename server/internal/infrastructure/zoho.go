@@ -48,6 +48,8 @@ func (z *ZohoClient) RefreshAccessToken(ctx context.Context, refresh string) (st
 type tokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	Error        string `json:"error"`
+	Description  string `json:"error_description"`
 }
 
 func (z *ZohoClient) token(ctx context.Context, form url.Values) (tokenResponse, error) {
@@ -62,8 +64,17 @@ func (z *ZohoClient) token(ctx context.Context, form url.Values) (tokenResponse,
 	}
 	defer response.Body.Close()
 	var data tokenResponse
-	if response.StatusCode != http.StatusOK || json.NewDecoder(response.Body).Decode(&data) != nil || data.AccessToken == "" {
-		return tokenResponse{}, errors.New("Zoho token request failed")
+	if err := json.NewDecoder(response.Body).Decode(&data); err != nil {
+		return tokenResponse{}, fmt.Errorf("decode Zoho token response: %w", err)
+	}
+	if response.StatusCode != http.StatusOK || data.AccessToken == "" {
+		if data.Error != "" {
+			if data.Description != "" {
+				return tokenResponse{}, fmt.Errorf("Zoho token request failed: %s (%s)", data.Error, data.Description)
+			}
+			return tokenResponse{}, fmt.Errorf("Zoho token request failed: %s", data.Error)
+		}
+		return tokenResponse{}, fmt.Errorf("Zoho token request failed with status %d", response.StatusCode)
 	}
 	return data, nil
 }

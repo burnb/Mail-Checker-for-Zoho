@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -97,7 +98,8 @@ func (h *Handler) startAuth(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) finishAuth(w http.ResponseWriter, r *http.Request) {
 	callback, token, err := h.auth.Complete(r.Context(), r.URL.Query().Get("state"), r.URL.Query().Get("code"))
 	if err != nil {
-		http.Error(w, "OAuth failed", http.StatusBadRequest)
+		log.Printf("OAuth callback failed: %v", err)
+		http.Error(w, "OAuth failed: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	redirect, err := url.Parse(callback)
