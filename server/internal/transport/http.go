@@ -92,7 +92,18 @@ func (h *Handler) zohoWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	accountID := r.PathValue("accountID")
-	if err := h.validateWebhookSignature(r.Context(), accountID, r.Header.Get("X-Hook-Secret"), r.Header.Get("X-Hook-Signature"), body); err != nil {
+	initialized, err := h.initializeWebhookSecret(r.Context(), accountID, r.Header.Get("X-Hook-Secret"))
+	if err != nil {
+		log.Printf("Zoho webhook rejected: %v", err)
+		http.Error(w, "invalid webhook configuration", http.StatusUnauthorized)
+		return
+	}
+	if initialized {
+		log.Printf("Zoho webhook secret initialized for account %s", accountID)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if !validWebhookSignatureForAccount(r.Context(), h.webhookSecrets, accountID, r.Header.Get("X-Hook-Signature"), body) {
 		log.Printf("Zoho webhook rejected: %v", err)
 		http.Error(w, "invalid webhook signature", http.StatusUnauthorized)
 		return
@@ -215,37 +226,28 @@ func (h *Handler) cors(next http.Handler) http.Handler {
 	})
 }
 
-func (h *Handler) validateWebhookSignature(ctx context.Context, accountID, receivedSecret, signature string, body []byte) error {
-	if receivedSecret != "" && validWebhookSignature(receivedSecret, signature, body) {
-		storedSecret, err := h.webhookSecrets.WebhookSecret(ctx, accountID)
-		if err != nil {
-			return err
-		}
-		if storedSecret != receivedSecret {
-			if err := h.webhookSecrets.SaveWebhookSecret(ctx, accountID, receivedSecret); err != nil {
-				return err
-			}
-			log.Printf("Zoho webhook secret initialized for account %s", accountID)
-		}
-		return nil
-	}
+func (h *Handler) initializeWebhookSecret(ctx context.Context, accountID, receivedSecret string) (bool, error) {
 	secret, err := h.webhookSecrets.WebhookSecret(ctx, accountID)
 	if err != nil {
-		return err
+		return false, err
 	}
-	if secret == "" {
-		if receivedSecret == "" {
-			return errors.New("missing X-Hook-Secret while initializing webhook")
-		}
-		return errors.New("X-Hook-Signature does not match X-Hook-Secret")
+	if secret != "" {
+		return false, nil
 	}
-	if !validWebhookSignature(secret, signature, body) {
-		return errors.New("X-Hook-Signature does not match")
+	if receivedSecret == "" {
+		return false, errors.New("missing X-Hook-Secret while initializing webhook")
 	}
-	return nil
+	if err := h.webhookSecrets.SaveWebhookSecret(ctx, accountID, receivedSecret); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
-func validWebhookSignature(secret, signature string, body []byte) bool {
+func validWebhookSignatureForAccount(ctx context.Context, secrets domain.WebhookSecretRepository, accountID, signature string, body []byte) bool {
+	secret, err := secrets.WebhookSecret(ctx, accountID)
+	if err != nil || secret == "" {
+		return false
+	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
 	provided, err := base64.StdEncoding.DecodeString(strings.TrimSpace(signature))
