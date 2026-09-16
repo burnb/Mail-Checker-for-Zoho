@@ -1,6 +1,16 @@
 const api = typeof browser !== "undefined" ? browser : chrome;
 
-const BACKEND_URL = "https://api.mailchecker.workers.dev";
+async function getBackendUrl() {
+    const { backendUrl } = await api.storage.local.get("backendUrl");
+    return backendUrl;
+}
+
+async function openOAuth() {
+    const { session_id } = await api.storage.local.get("session_id");
+    const backendUrl = await getBackendUrl();
+    const callbackUrl = api.runtime.getURL("callback.html");
+    api.tabs.create({ url: `${backendUrl}/auth/zoho?session_id=${encodeURIComponent(session_id)}&extension_callback=${encodeURIComponent(callbackUrl)}` });
+}
 
 // Request deduplication
 let listLoading = false;
@@ -92,8 +102,7 @@ async function updateUI() {
         btn.textContent = "Connect Zoho Mail";
         btn.onclick = async () => {
             // Send session_id to backend via OAuth state
-            const { session_id } = await api.storage.local.get('session_id');
-            api.tabs.create({ url: `${BACKEND_URL}/auth/zoho?session_id=${session_id}` });
+            openOAuth();
             window.close();
         };
 
@@ -145,8 +154,7 @@ async function updateUI() {
         reconnectBtn.textContent = actionText;
         reconnectBtn.onclick = async () => {
             // Send session_id to backend via OAuth state
-            const { session_id } = await api.storage.local.get('session_id');
-            api.tabs.create({ url: `${BACKEND_URL}/auth/zoho?session_id=${session_id}` });
+            openOAuth();
             window.close();
         };
 
@@ -231,7 +239,8 @@ async function loadList(folderId = null) {
 
         if (!jwt) return;
 
-        const url = new URL(`${BACKEND_URL}/mail/unread/list`);
+        const backendUrl = await getBackendUrl();
+        const url = new URL(`${backendUrl}/mail/unread/list`);
         url.searchParams.append("limit", "50");
         // Use cached data from background poll (no forced refresh)
         if (folderId) url.searchParams.append("folder", folderId);
@@ -269,7 +278,8 @@ async function loadFolders() {
     if (!jwt) return;
 
     try {
-        const res = await fetch(`${BACKEND_URL}/mail/folders`, {
+        const backendUrl = await getBackendUrl();
+        const res = await fetch(`${backendUrl}/mail/folders`, {
             headers: { Authorization: `Bearer ${jwt}` }
         });
 

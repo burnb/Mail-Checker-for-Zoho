@@ -1,8 +1,7 @@
 const api = typeof browser !== "undefined" ? browser : chrome;
 
-const BACKEND_URL = "https://api.mailchecker.workers.dev";
-const ALARM_NAME = "poll-unread";
 const NOTIFICATION_ID = "new-mail-notify";
+let eventSocket = null;
 
 // Poll mutex
 let pollInProgress = false;
@@ -27,32 +26,21 @@ api.runtime.onInstalled.addListener(async () => {
         console.log('Existing session ID:', session_id);
     }
 
-    checkMail(true); // Edge fix: force first fetch
+    checkMail(true);
 });
 
-// Alarm listener
-api.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === ALARM_NAME) {
-        checkMail();
-    }
-});
-
-// Listen for JWT storage to trigger immediate poll after OAuth
+// Listen for JWT storage to activate live mail events after OAuth.
 api.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.jwt && changes.jwt.newValue) {
-        console.log("JWT stored, triggering initial poll");
         checkMail(true);
+        connectEvents();
     }
 });
 
 // Alarm persistence and startup fetch for Edge
 api.runtime.onStartup.addListener(async () => {
-    checkMail(true); // Edge fix: force fetch on startup
-    const data = await api.storage.local.get("authError");
-    if (data.authError === false) {
-        const settings = (await api.storage.local.get("settings")).settings || { refreshInterval: 5 };
-        api.alarms.create(ALARM_NAME, { periodInMinutes: settings.refreshInterval || 5 });
-    }
+    checkMail(true);
+    connectEvents();
 })
 
 // Handle icon click (Manual Refresh)
@@ -77,7 +65,8 @@ async function checkMail(force = false, retryCount = 0) {
             return;
         }
 
-        const url = `${BACKEND_URL}/mail/unread${force ? "?refresh=true" : ""}`;
+        const backendUrl = await getBackendUrl();
+        const url = `${backendUrl}/mail/unread${force ? "?refresh=true" : ""}`;
 
         // Show loading if online (doesn't overwrite badgeState)
         if (navigator.onLine) {
@@ -153,12 +142,6 @@ async function checkMail(force = false, retryCount = 0) {
         // Notification logic AFTER state is stable
         if (settings.enableNotifications !== false) {
             handleNotification(unread, previousUnread, data.lastNotificationTime);
-        }
-
-        // Ensure alarm is running (Start it now that we have success)
-        const alarm = await api.alarms.get(ALARM_NAME);
-        if (!alarm) {
-            api.alarms.create(ALARM_NAME, { periodInMinutes: settings.refreshInterval || 5 });
         }
 
     } catch (err) {
@@ -243,22 +226,16 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (msg.action === "auth_success") {
-        console.log("Auth success received, restarting polling...");
-        // Ensure alarm exists after auth
-        api.alarms.create(ALARM_NAME, { periodInMinutes: 1 });
-        // Immediately check mail with force refresh to rehydrate state
+        console.log("Auth success received, enabling mail events...");
         checkMail(true);
+        connectEvents();
         sendResponse({ status: "polling_restarted" });
-    }
-
-    if (msg.action === "updateInterval") {
-        console.log("Updating alarm interval to:", msg.interval);
-        api.alarms.create(ALARM_NAME, { periodInMinutes: msg.interval });
     }
 
     if (msg.type === "ZOHO_AUTH_TOKEN" && msg.token) {
         // Optional: Validate sender origin (extra security layer)
-        if (sender.url && !sender.url.startsWith(BACKEND_URL)) {
+        const backendUrl = getBackendUrl();
+        if (sender.url && !sender.url.startsWith(backendUrl)) {
             console.warn("Token rejected: invalid sender origin", sender.url);
             sendResponse({ success: false, error: "invalid_origin" });
             return true;
@@ -275,3 +252,31 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     return true;
 });
+
+async function getBackendUrl() {
+    const { backendUrl } = await api.storage.local.get("backendUrl");
+    return backendUrl;
+}
+
+async function connectEvents() {
+    const { jwt } = await api.storage.local.get("jwt");
+    if (!jwt || eventSocket?.readyState === WebSocket.OPEN || eventSocket?.readyState === WebSocket.CONNECTING) return;
+
+    const backendUrl = await getBackendUrl();
+    const eventsUrl = new URL(`${backendUrl}/events`);
+    eventsUrl.protocol = eventsUrl.protocol === "https:" ? "wss:" : "ws:";
+    eventsUrl.searchParams.set("access_token", jwt);
+    eventSocket = new WebSocket(eventsUrl);
+    eventSocket.onmessage = (event) => {
+        try {
+            if (JSON.parse(event.data).type === "mail.received") checkMail(true);
+        } catch (error) {
+            console.error("Invalid server event", error);
+        }
+    };
+    eventSocket.onclose = () => {
+        eventSocket = null;
+        setTimeout(connectEvents, 5000);
+    };
+    eventSocket.onerror = () => eventSocket.close();
+}

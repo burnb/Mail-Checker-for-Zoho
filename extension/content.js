@@ -2,8 +2,6 @@ const api = typeof browser !== "undefined" ? browser : chrome;
 
 // Listen for messages from the web page (OAuth callback bridge)
 window.addEventListener("message", (event) => {
-    // Accept messages only from our backend origin
-    if (event.origin !== "https://api.mailchecker.workers.dev") return;
     if (event.source !== window) return;
 
     // Validate token structure

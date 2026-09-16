@@ -7,7 +7,7 @@
     "storage",
     "alarms",
     "notifications",
-    "https://api.mailchecker.workers.dev/*"
+    "<all_urls>"
   ],
   "browser_action": {
     "default_title": "Mail Checker for Zoho",
@@ -26,17 +26,6 @@
     "96": "icons/icon-96.png",
     "128": "icons/icon-128.png"
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://api.mailchecker.workers.dev/extension-bridge*"
-      ],
-      "js": [
-        "content.js"
-      ],
-      "run_at": "document_start"
-    }
-  ],
   "web_accessible_resources": [
     "callback.html"
   ],

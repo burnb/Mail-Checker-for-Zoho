@@ -1,0 +1,16 @@
+services:
+  server:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-local}/zoho-mail-checker:latest
+    env_file:
+      - .env
+    environment:
+      ADDR: :8000
+      TOKEN_STORE_PATH: /opt/app/data/tokens.json
+    ports:
+      - "8000:8000"
+    volumes:
+      - token-data:/opt/app/data
+    restart: unless-stopped
+
+volumes:
+  token-data:

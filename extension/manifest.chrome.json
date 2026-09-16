@@ -8,8 +8,9 @@
     "alarms",
     "notifications"
   ],
-  "host_permissions": [
-    "https://api.mailchecker.workers.dev/*"
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
   ],
   "action": {
     "default_title": "Mail Checker for Zoho",
@@ -23,24 +24,13 @@
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://api.mailchecker.workers.dev/extension-bridge*"
-      ],
-      "js": [
-        "content.js"
-      ],
-      "run_at": "document_start"
-    }
-  ],
   "web_accessible_resources": [
     {
       "resources": [
         "callback.html"
       ],
       "matches": [
-        "https://api.mailchecker.workers.dev/*"
+        "<all_urls>"
       ]
     }
   ]

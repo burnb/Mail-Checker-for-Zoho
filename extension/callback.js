@@ -2,8 +2,9 @@ const api = typeof browser !== "undefined" ? browser : chrome;
 
 (async function () {
   try {
-    // Security check: Only accept tokens from our backend
-    if (!document.referrer.startsWith("https://api.mailchecker.workers.dev")) {
+    const { backendUrl } = await api.storage.local.get("backendUrl");
+    const expectedOrigin = new URL(backendUrl).origin;
+    if (!document.referrer || new URL(document.referrer).origin !== expectedOrigin) {
       console.error("Invalid referrer:", document.referrer);
       window.close();
       return;

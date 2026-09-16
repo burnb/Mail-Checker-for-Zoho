@@ -162,6 +162,8 @@
       height: 28px;
     }
 
+    input[type="url"] { width: 260px; }
+
     .footer {
       margin-top: 10px;
       margin-bottom: 20px;
@@ -221,6 +223,17 @@
       </div>
     </div>
 
+    <div class="section">
+      <div class="section-header"><p class="section-title">Server</p></div>
+      <div class="setting-item">
+        <div class="setting-info">
+          <p class="setting-label">URL</p>
+          <p class="setting-desc">The HTTPS URL of your Mail Checker server.</p>
+        </div>
+        <input type="url" id="backendUrl" placeholder="https://mail.example.com">
+      </div>
+    </div>
+
     <!-- Notifications Section -->
     <div class="section">
       <div class="section-header">
@@ -247,20 +260,6 @@
             <span class="slider"></span>
           </label>
         </div>
-      </div>
-    </div>
-
-    <!-- Advanced Section -->
-    <div class="section">
-      <div class="section-header">
-        <p class="section-title">Advanced</p>
-      </div>
-      <div class="setting-item">
-        <div class="setting-info">
-          <p class="setting-label">Auto-Refresh Interval</p>
-          <p class="setting-desc">How often to check for new mails (in minutes).</p>
-        </div>
-        <input type="number" id="refreshInterval" value="5" min="1" max="60" style="width: 50px;">
       </div>
     </div>
 
