@@ -72,16 +72,34 @@ func (h *Handler) eventsSocket(w http.ResponseWriter, r *http.Request) {
 	events := h.events.Subscribe(r.Context(), userID)
 	ping := time.NewTicker(25 * time.Second)
 	defer ping.Stop()
+	readErrors := make(chan error, 1)
+	connection.SetReadDeadline(time.Now().Add(60 * time.Second))
+	connection.SetPongHandler(func(string) error {
+		return connection.SetReadDeadline(time.Now().Add(60 * time.Second))
+	})
+	go func() {
+		for {
+			if _, _, err := connection.ReadMessage(); err != nil {
+				readErrors <- err
+				return
+			}
+		}
+	}()
 	for {
 		select {
 		case event := <-events:
 			if err := connection.WriteMessage(websocket.TextMessage, []byte(event)); err != nil {
+				log.Printf("WebSocket event delivery failed for user %s: %v", userID, err)
 				return
 			}
 		case <-ping.C:
 			if err := connection.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second)); err != nil {
+				log.Printf("WebSocket ping failed for user %s: %v", userID, err)
 				return
 			}
+		case err := <-readErrors:
+			log.Printf("WebSocket read ended for user %s: %v", userID, err)
+			return
 		}
 	}
 }
