@@ -216,6 +216,19 @@ func (h *Handler) cors(next http.Handler) http.Handler {
 }
 
 func (h *Handler) validateWebhookSignature(ctx context.Context, accountID, receivedSecret, signature string, body []byte) error {
+	if receivedSecret != "" && validWebhookSignature(receivedSecret, signature, body) {
+		storedSecret, err := h.webhookSecrets.WebhookSecret(ctx, accountID)
+		if err != nil {
+			return err
+		}
+		if storedSecret != receivedSecret {
+			if err := h.webhookSecrets.SaveWebhookSecret(ctx, accountID, receivedSecret); err != nil {
+				return err
+			}
+			log.Printf("Zoho webhook secret initialized for account %s", accountID)
+		}
+		return nil
+	}
 	secret, err := h.webhookSecrets.WebhookSecret(ctx, accountID)
 	if err != nil {
 		return err
@@ -224,20 +237,22 @@ func (h *Handler) validateWebhookSignature(ctx context.Context, accountID, recei
 		if receivedSecret == "" {
 			return errors.New("missing X-Hook-Secret while initializing webhook")
 		}
-		if err := h.webhookSecrets.SaveWebhookSecret(ctx, accountID, receivedSecret); err != nil {
-			return err
-		}
-		secret = receivedSecret
-		log.Print("Zoho webhook secret initialized")
+		return errors.New("X-Hook-Signature does not match X-Hook-Secret")
 	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(body)
-	expected := mac.Sum(nil)
-	provided, err := base64.StdEncoding.DecodeString(signature)
-	if err != nil || !hmac.Equal(provided, expected) {
+	if !validWebhookSignature(secret, signature, body) {
 		return errors.New("X-Hook-Signature does not match")
 	}
 	return nil
+}
+
+func validWebhookSignature(secret, signature string, body []byte) bool {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	provided, err := base64.StdEncoding.DecodeString(strings.TrimSpace(signature))
+	if err != nil {
+		provided, err = base64.RawStdEncoding.DecodeString(strings.TrimSpace(signature))
+	}
+	return err == nil && hmac.Equal(provided, mac.Sum(nil))
 }
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
