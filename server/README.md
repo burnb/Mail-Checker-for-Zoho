@@ -22,11 +22,11 @@ Configure your Zoho webhook integration to call:
 
 `POST https://your-server.example/webhooks/zoho/{accountID}`
 
-Set `X-Webhook-Signature` to the lowercase hexadecimal HMAC-SHA256 of the raw request body, using `WEBHOOK_SECRET`. The `{accountID}` value is the Zoho account ID saved during OAuth. The endpoint returns `204 No Content` for a known account, `401` for an invalid signature, and `404` for an unknown account.
+The `{accountID}` value is saved during OAuth and displayed in the extension beneath the account email. Zoho sends `X-Hook-Secret` only with the first webhook request. The server saves this secret, encrypted, in `TOKEN_STORE_PATH` and validates each `X-Hook-Signature` as a base64 HMAC-SHA256 digest of the raw request body. The endpoint returns `204 No Content` for a known account, `401` for an invalid signature, and `404` for an unknown account.
 
 The webhook endpoint must be publicly reachable through HTTPS. This server does not poll mail automatically; the existing manual refresh remains available in the extension.
 
-To confirm delivery, inspect the server logs after a new email: a successful request logs `Zoho webhook accepted for account ...`. A `401` means the HMAC signature differs from `WEBHOOK_SECRET`; a `404` means the URL's account ID is not the account saved during OAuth.
+To confirm delivery, inspect the server logs after a new email: a successful request logs `Zoho webhook accepted for account ...`. The first successful request also logs `Zoho webhook secret initialized`. A `401` means that `X-Hook-Signature` did not validate; a `404` means the URL's account ID is not the account saved during OAuth.
 
 ## Run locally
 
@@ -38,4 +38,4 @@ In the extension, open Settings and enter your server URL. Chrome asks for permi
 
 For local development, use `http://localhost:8080`. For production, serve this application behind HTTPS and configure the production callback URL in both Zoho and `ZOHO_REDIRECT_URL`.
 
-`TOKEN_ENCRYPTION_KEY` must be 32 ASCII bytes. Generate a suitable value with a password manager or `openssl rand -base64 24`; preserve it across restarts, or stored refresh tokens cannot be read.
+`TOKEN_ENCRYPTION_KEY` must be 32 ASCII bytes. Generate a suitable value with a password manager or `openssl rand -base64 24`; preserve it across restarts, or stored refresh tokens and the Zoho webhook secret cannot be read.

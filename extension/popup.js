@@ -40,7 +40,13 @@ function toggleTheme() {
 
 // Time formatting
 function formatMailDate(timestamp) {
-    const d = new Date(timestamp);
+    const value = typeof timestamp === "string" && /^\d+$/.test(timestamp)
+        ? Number(timestamp)
+        : timestamp;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) {
+        return "";
+    }
     const now = new Date();
 
     if (d.toDateString() === now.toDateString()) {

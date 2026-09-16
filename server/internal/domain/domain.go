@@ -22,6 +22,10 @@ type CredentialRepository interface {
 	Find(context.Context, string) (Credential, error)
 	FindByAccountID(context.Context, string) (string, error)
 }
+type WebhookSecretRepository interface {
+	WebhookSecret(context.Context) (string, error)
+	SaveWebhookSecret(context.Context, string) error
+}
 type TokenService interface {
 	Issue(map[string]any) (string, error)
 	Verify(string) (map[string]any, error)

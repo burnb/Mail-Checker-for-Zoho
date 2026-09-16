@@ -25,7 +25,7 @@ func main() {
 	mail := application.NewMailService(store, zoho)
 	events := application.NewEventHub()
 	webhooks := application.NewWebhookService(store, events)
-	handler := transport.NewHandler(app, mail, webhooks, events, tokens, cfg.AllowedOrigins, cfg.WebhookSecret)
+	handler := transport.NewHandler(app, mail, webhooks, events, tokens, store, cfg.AllowedOrigins)
 	log.Printf("Mail Checker API listening on %s", cfg.Addr)
 	log.Fatal(http.ListenAndServe(cfg.Addr, handler.Routes()))
 }

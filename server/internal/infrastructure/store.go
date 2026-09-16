@@ -16,10 +16,16 @@ import (
 )
 
 type FileCredentialStore struct {
-	mu      sync.RWMutex
-	path    string
-	block   cipher.Block
-	records map[string]domain.Credential
+	mu            sync.RWMutex
+	path          string
+	block         cipher.Block
+	records       map[string]domain.Credential
+	webhookSecret string
+}
+
+type persistedStore struct {
+	Credentials   map[string]domain.Credential `json:"credentials"`
+	WebhookSecret string                       `json:"webhookSecret"`
 }
 
 func NewFileCredentialStore(path, key string) (*FileCredentialStore, error) {
@@ -35,8 +41,23 @@ func NewFileCredentialStore(path, key string) (*FileCredentialStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(content, &store.records); err != nil {
+	var persisted persistedStore
+	if err := json.Unmarshal(content, &persisted); err != nil {
 		return nil, err
+	}
+	if persisted.Credentials == nil {
+		if err := json.Unmarshal(content, &store.records); err != nil {
+			return nil, err
+		}
+	} else {
+		store.records = persisted.Credentials
+		if persisted.WebhookSecret != "" {
+			secret, err := store.decrypt(persisted.WebhookSecret)
+			if err != nil {
+				return nil, err
+			}
+			store.webhookSecret = secret
+		}
 	}
 	for id, credential := range store.records {
 		plain, err := store.decrypt(credential.RefreshToken)
@@ -52,6 +73,9 @@ func (s *FileCredentialStore) Save(_ context.Context, id string, credential doma
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.records[id] = credential
+	return s.persist()
+}
+func (s *FileCredentialStore) persist() error {
 	persisted := map[string]domain.Credential{}
 	for id, record := range s.records {
 		encrypted, err := s.encrypt(record.RefreshToken)
@@ -61,7 +85,15 @@ func (s *FileCredentialStore) Save(_ context.Context, id string, credential doma
 		record.RefreshToken = encrypted
 		persisted[id] = record
 	}
-	data, err := json.Marshal(persisted)
+	storedSecret := ""
+	if s.webhookSecret != "" {
+		var err error
+		storedSecret, err = s.encrypt(s.webhookSecret)
+		if err != nil {
+			return err
+		}
+	}
+	data, err := json.Marshal(persistedStore{Credentials: persisted, WebhookSecret: storedSecret})
 	if err != nil {
 		return err
 	}
@@ -88,6 +120,17 @@ func (s *FileCredentialStore) FindByAccountID(_ context.Context, accountID strin
 		}
 	}
 	return "", errors.New("credential not found")
+}
+func (s *FileCredentialStore) WebhookSecret(_ context.Context) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.webhookSecret, nil
+}
+func (s *FileCredentialStore) SaveWebhookSecret(_ context.Context, secret string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.webhookSecret = secret
+	return s.persist()
 }
 func (s *FileCredentialStore) encrypt(value string) (string, error) {
 	gcm, err := cipher.NewGCM(s.block)

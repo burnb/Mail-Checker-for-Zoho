@@ -13,8 +13,7 @@ type Config struct {
 	JWTSecret,
 	TokenEncryptionKey,
 	TokenStorePath,
-	AllowedOrigins,
-	WebhookSecret string
+	AllowedOrigins string
 }
 
 func Load() (Config, error) {
@@ -27,10 +26,9 @@ func Load() (Config, error) {
 		TokenEncryptionKey: os.Getenv("TOKEN_ENCRYPTION_KEY"),
 		TokenStorePath:     value("TOKEN_STORE_PATH", "data/tokens.json"),
 		AllowedOrigins:     os.Getenv("ALLOWED_ORIGINS"),
-		WebhookSecret:      os.Getenv("WEBHOOK_SECRET"),
 	}
-	if c.ClientID == "" || c.ClientSecret == "" || c.RedirectURL == "" || c.JWTSecret == "" || c.TokenEncryptionKey == "" || c.WebhookSecret == "" {
-		return c, errors.New("ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, ZOHO_REDIRECT_URL, JWT_SECRET, TOKEN_ENCRYPTION_KEY, and WEBHOOK_SECRET are required")
+	if c.ClientID == "" || c.ClientSecret == "" || c.RedirectURL == "" || c.JWTSecret == "" || c.TokenEncryptionKey == "" {
+		return c, errors.New("ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, ZOHO_REDIRECT_URL, JWT_SECRET, and TOKEN_ENCRYPTION_KEY are required")
 	}
 	if len(c.TokenEncryptionKey) != 32 {
 		return c, errors.New("TOKEN_ENCRYPTION_KEY must contain exactly 32 bytes")

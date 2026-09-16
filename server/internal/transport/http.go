@@ -1,10 +1,12 @@
 package transport
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -26,18 +28,18 @@ type Handler struct {
 	events         *application.EventHub
 	tokens         domain.TokenService
 	allowedOrigins map[string]bool
-	webhookSecret  []byte
+	webhookSecrets domain.WebhookSecretRepository
 	upgrader       websocket.Upgrader
 }
 
-func NewHandler(auth *application.AuthService, mail *application.MailService, webhooks *application.WebhookService, events *application.EventHub, tokens domain.TokenService, origins, webhookSecret string) *Handler {
+func NewHandler(auth *application.AuthService, mail *application.MailService, webhooks *application.WebhookService, events *application.EventHub, tokens domain.TokenService, webhookSecrets domain.WebhookSecretRepository, origins string) *Handler {
 	allowed := map[string]bool{}
 	for _, origin := range strings.Split(origins, ",") {
 		if origin = strings.TrimSpace(origin); origin != "" {
 			allowed[origin] = true
 		}
 	}
-	return &Handler{auth: auth, mail: mail, webhooks: webhooks, events: events, tokens: tokens, allowedOrigins: allowed, webhookSecret: []byte(webhookSecret), upgrader: websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return allowed[r.Header.Get("Origin")] }}}
+	return &Handler{auth: auth, mail: mail, webhooks: webhooks, events: events, tokens: tokens, allowedOrigins: allowed, webhookSecrets: webhookSecrets, upgrader: websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return allowed[r.Header.Get("Origin")] }}}
 }
 func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
@@ -85,7 +87,12 @@ func (h *Handler) eventsSocket(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) zohoWebhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
-	if err != nil || !h.validWebhookSignature(r.Header.Get("X-Webhook-Signature"), body) {
+	if err != nil {
+		http.Error(w, "invalid webhook body", http.StatusBadRequest)
+		return
+	}
+	if err := h.validateWebhookSignature(r.Context(), r.Header.Get("X-Hook-Secret"), r.Header.Get("X-Hook-Signature"), body); err != nil {
+		log.Printf("Zoho webhook rejected: %v", err)
 		http.Error(w, "invalid webhook signature", http.StatusUnauthorized)
 		return
 	}
@@ -206,10 +213,30 @@ func (h *Handler) cors(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-func (h *Handler) validWebhookSignature(signature string, body []byte) bool {
-	mac := hmac.New(sha256.New, h.webhookSecret)
+
+func (h *Handler) validateWebhookSignature(ctx context.Context, receivedSecret, signature string, body []byte) error {
+	secret, err := h.webhookSecrets.WebhookSecret(ctx)
+	if err != nil {
+		return err
+	}
+	if secret == "" {
+		if receivedSecret == "" {
+			return errors.New("missing X-Hook-Secret while initializing webhook")
+		}
+		if err := h.webhookSecrets.SaveWebhookSecret(ctx, receivedSecret); err != nil {
+			return err
+		}
+		secret = receivedSecret
+		log.Print("Zoho webhook secret initialized")
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
-	return hmac.Equal([]byte(strings.ToLower(signature)), []byte(fmt.Sprintf("%x", mac.Sum(nil))))
+	expected := mac.Sum(nil)
+	provided, err := base64.StdEncoding.DecodeString(signature)
+	if err != nil || !hmac.Equal(provided, expected) {
+		return errors.New("X-Hook-Signature does not match")
+	}
+	return nil
 }
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")

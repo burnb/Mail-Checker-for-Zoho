@@ -143,6 +143,12 @@ func (z *ZohoClient) get(ctx context.Context, access, endpoint string) (map[stri
 	return data, json.NewDecoder(response.Body).Decode(&data)
 }
 func stringValue(data map[string]any, key string) string {
-	value, _ := data[key].(string)
-	return value
+	switch value := data[key].(type) {
+	case string:
+		return value
+	case float64:
+		return strconv.FormatInt(int64(value), 10)
+	default:
+		return ""
+	}
 }
