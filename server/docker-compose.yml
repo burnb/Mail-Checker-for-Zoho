@@ -1,4 +1,11 @@
 services:
+  token-data-init:
+    image: alpine:3.22
+    command: ["sh", "-c", "chown -R 1000:1000 /data && chmod 700 /data"]
+    volumes:
+      - token-data:/data
+    restart: "no"
+
   server:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-local}/zoho-mail-checker:latest
     env_file:
@@ -10,6 +17,9 @@ services:
       - "8000:8000"
     volumes:
       - token-data:/opt/app/data
+    depends_on:
+      token-data-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
 volumes:

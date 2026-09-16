@@ -152,7 +152,12 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, userID string) {
 		h.mailError(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"items": messages, "account": map[string]string{}})
+	email, err := h.mail.AccountEmail(r.Context(), userID)
+	if err != nil {
+		h.mailError(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"items": messages, "account": map[string]string{"email": email}})
 }
 func (h *Handler) folders(w http.ResponseWriter, r *http.Request, userID string) {
 	folders, err := h.mail.Folders(r.Context(), userID)

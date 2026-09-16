@@ -77,6 +77,27 @@ func (s *MailService) List(ctx context.Context, userID, folder string, limit int
 	}
 	return s.zoho.UnreadMessages(ctx, access, credential.AccountID, folder, limit)
 }
+func (s *MailService) AccountEmail(ctx context.Context, userID string) (string, error) {
+	credential, err := s.credentials.Find(ctx, userID)
+	if err != nil {
+		return "", ErrUnauthorized
+	}
+	if credential.Email == "" {
+		access, err := s.zoho.RefreshAccessToken(ctx, credential.RefreshToken)
+		if err != nil {
+			return "", err
+		}
+		account, err := s.zoho.Account(ctx, access)
+		if err != nil {
+			return "", err
+		}
+		credential.Email = account.Email
+		if err := s.credentials.Save(ctx, userID, credential); err != nil {
+			return "", err
+		}
+	}
+	return credential.Email, nil
+}
 func (s *MailService) Folders(ctx context.Context, userID string) ([]domain.Folder, error) {
 	access, credential, err := s.access(ctx, userID)
 	if err != nil {

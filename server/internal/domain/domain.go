@@ -2,9 +2,17 @@ package domain
 
 import "context"
 
-type Credential struct{ RefreshToken, AccountID string }
+type Credential struct{ RefreshToken, AccountID, Email string }
 type Account struct{ ID, Email string }
-type Message struct{ ID, FromName, FromEmail, Subject, Snippet, ReceivedAt, Link string }
+type Message struct {
+	ID         string `json:"id"`
+	FromName   string `json:"fromName"`
+	FromEmail  string `json:"fromEmail"`
+	Subject    string `json:"subject"`
+	Snippet    string `json:"snippet"`
+	ReceivedAt string `json:"receivedAt"`
+	Link       string `json:"link"`
+}
 type Folder struct {
 	ID, Name string
 	Unread   int

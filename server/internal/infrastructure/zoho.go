@@ -38,7 +38,7 @@ func (z *ZohoClient) ExchangeCode(ctx context.Context, code string) (domain.Cred
 	if data.RefreshToken == "" {
 		return domain.Credential{}, errors.New("Zoho omitted refresh token")
 	}
-	return domain.Credential{RefreshToken: data.RefreshToken, AccountID: account.ID}, nil
+	return domain.Credential{RefreshToken: data.RefreshToken, AccountID: account.ID, Email: account.Email}, nil
 }
 func (z *ZohoClient) RefreshAccessToken(ctx context.Context, refresh string) (string, error) {
 	data, err := z.token(ctx, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {refresh}, "client_id": {z.clientID}, "client_secret": {z.clientSecret}})

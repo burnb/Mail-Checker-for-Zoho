@@ -2,14 +2,6 @@ const api = typeof browser !== "undefined" ? browser : chrome;
 
 (async function () {
   try {
-    const { backendUrl } = await api.storage.local.get("backendUrl");
-    const expectedOrigin = new URL(backendUrl).origin;
-    if (!document.referrer || new URL(document.referrer).origin !== expectedOrigin) {
-      console.error("Invalid referrer:", document.referrer);
-      window.close();
-      return;
-    }
-
     // Parse token from URL
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get("token");

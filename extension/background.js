@@ -262,11 +262,16 @@ async function connectEvents() {
     const { jwt } = await api.storage.local.get("jwt");
     if (!jwt || eventSocket?.readyState === WebSocket.OPEN || eventSocket?.readyState === WebSocket.CONNECTING) return;
 
+	api.storage.local.set({ eventsConnected: false });
     const backendUrl = await getBackendUrl();
     const eventsUrl = new URL(`${backendUrl}/events`);
     eventsUrl.protocol = eventsUrl.protocol === "https:" ? "wss:" : "ws:";
     eventsUrl.searchParams.set("access_token", jwt);
     eventSocket = new WebSocket(eventsUrl);
+	eventSocket.onopen = () => {
+		console.log("WebSocket connected");
+		api.storage.local.set({ eventsConnected: true });
+	};
     eventSocket.onmessage = (event) => {
         try {
             if (JSON.parse(event.data).type === "mail.received") checkMail(true);
@@ -275,6 +280,8 @@ async function connectEvents() {
         }
     };
     eventSocket.onclose = () => {
+		console.log("WebSocket disconnected");
+		api.storage.local.set({ eventsConnected: false });
         eventSocket = null;
         setTimeout(connectEvents, 5000);
     };

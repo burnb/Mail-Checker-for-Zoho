@@ -56,12 +56,13 @@ function formatMailDate(timestamp) {
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-// Update online/offline status indicator
-function updateStatus() {
+// Update WebSocket connection status indicator
+async function updateStatus() {
     const indicator = document.querySelector(".status-indicator");
     if (!indicator) return;
 
-    if (navigator.onLine) {
+    const { eventsConnected } = await api.storage.local.get("eventsConnected");
+    if (eventsConnected) {
         indicator.classList.remove("offline");
     } else {
         indicator.classList.add("offline");
@@ -460,6 +461,7 @@ api.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && (changes.lastUnread || changes.authError || changes.jwt)) {
         updateUI();
     }
+    if (area === "local" && changes.eventsConnected) updateStatus();
 });
 
 // Initialize
@@ -476,6 +478,4 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     updateStatus();
-    window.addEventListener("online", updateStatus);
-    window.addEventListener("offline", updateStatus);
 });
