@@ -6,6 +6,7 @@ type Credential struct{ RefreshToken, AccountID, Email string }
 type Account struct{ ID, Email string }
 type Message struct {
 	ID         string `json:"id"`
+	FolderID   string `json:"folderId"`
 	FromName   string `json:"fromName"`
 	FromEmail  string `json:"fromEmail"`
 	Subject    string `json:"subject"`
@@ -36,5 +37,7 @@ type ZohoGateway interface {
 	RefreshAccessToken(context.Context, string) (string, error)
 	Account(context.Context, string) (Account, error)
 	UnreadMessages(context.Context, string, string, string, int) ([]Message, error)
+	MessageContent(context.Context, string, string, string, string) (string, error)
+	MarkRead(context.Context, string, string, []string) error
 	Folders(context.Context, string, string) ([]Folder, error)
 }

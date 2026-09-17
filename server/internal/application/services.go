@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"mail-checker-server/internal/domain"
@@ -13,14 +15,17 @@ import (
 var ErrUnauthorized = errors.New("unauthorized")
 
 type AuthService struct {
+	host        string
 	credentials domain.CredentialRepository
 	tokens      domain.TokenService
 	zoho        domain.ZohoGateway
+	log         *slog.Logger
 }
 
-func NewAuthService(credentials domain.CredentialRepository, tokens domain.TokenService, zoho domain.ZohoGateway) *AuthService {
-	return &AuthService{credentials, tokens, zoho}
+func NewAuthService(host string, credentials domain.CredentialRepository, tokens domain.TokenService, zoho domain.ZohoGateway, log *slog.Logger) *AuthService {
+	return &AuthService{host: host, credentials: credentials, tokens: tokens, zoho: zoho, log: log}
 }
+
 func (s *AuthService) Start(sessionID, callbackURL string) (string, error) {
 	if sessionID == "" || callbackURL == "" {
 		return "", errors.New("session_id and extension_callback are required")
@@ -31,6 +36,7 @@ func (s *AuthService) Start(sessionID, callbackURL string) (string, error) {
 	}
 	return s.zoho.AuthorizationURL(state), nil
 }
+
 func (s *AuthService) Complete(ctx context.Context, state, code string) (string, string, error) {
 	claims, err := s.tokens.Verify(state)
 	if err != nil {
@@ -44,6 +50,9 @@ func (s *AuthService) Complete(ctx context.Context, state, code string) (string,
 	if err != nil {
 		return "", "", err
 	}
+
+	s.log.Info("Webhook URL", "url", fmt.Sprintf("%s/webhooks/zoho/%s", s.host, credential.AccountID))
+
 	userID, err := identifier()
 	if err != nil {
 		return "", "", err
@@ -63,6 +72,7 @@ type MailService struct {
 func NewMailService(credentials domain.CredentialRepository, zoho domain.ZohoGateway) *MailService {
 	return &MailService{credentials, zoho}
 }
+
 func (s *MailService) Unread(ctx context.Context, userID string) ([]domain.Message, error) {
 	access, credential, err := s.access(ctx, userID)
 	if err != nil {
@@ -70,6 +80,7 @@ func (s *MailService) Unread(ctx context.Context, userID string) ([]domain.Messa
 	}
 	return s.zoho.UnreadMessages(ctx, access, credential.AccountID, "", 100)
 }
+
 func (s *MailService) List(ctx context.Context, userID, folder string, limit int) ([]domain.Message, error) {
 	access, credential, err := s.access(ctx, userID)
 	if err != nil {
@@ -77,6 +88,23 @@ func (s *MailService) List(ctx context.Context, userID, folder string, limit int
 	}
 	return s.zoho.UnreadMessages(ctx, access, credential.AccountID, folder, limit)
 }
+
+func (s *MailService) Content(ctx context.Context, userID, folderID, messageID string) (string, error) {
+	access, credential, err := s.access(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	return s.zoho.MessageContent(ctx, access, credential.AccountID, folderID, messageID)
+}
+
+func (s *MailService) MarkRead(ctx context.Context, userID string, messageIDs []string) error {
+	access, credential, err := s.access(ctx, userID)
+	if err != nil {
+		return err
+	}
+	return s.zoho.MarkRead(ctx, access, credential.AccountID, messageIDs)
+}
+
 func (s *MailService) AccountEmail(ctx context.Context, userID string) (string, error) {
 	credential, err := s.credentials.Find(ctx, userID)
 	if err != nil {
@@ -98,6 +126,7 @@ func (s *MailService) AccountEmail(ctx context.Context, userID string) (string, 
 	}
 	return credential.Email, nil
 }
+
 func (s *MailService) AccountID(ctx context.Context, userID string) (string, error) {
 	credential, err := s.credentials.Find(ctx, userID)
 	if err != nil {
@@ -105,6 +134,7 @@ func (s *MailService) AccountID(ctx context.Context, userID string) (string, err
 	}
 	return credential.AccountID, nil
 }
+
 func (s *MailService) Folders(ctx context.Context, userID string) ([]domain.Folder, error) {
 	access, credential, err := s.access(ctx, userID)
 	if err != nil {
@@ -112,6 +142,7 @@ func (s *MailService) Folders(ctx context.Context, userID string) ([]domain.Fold
 	}
 	return s.zoho.Folders(ctx, access, credential.AccountID)
 }
+
 func (s *MailService) access(ctx context.Context, userID string) (string, domain.Credential, error) {
 	credential, err := s.credentials.Find(ctx, userID)
 	if err != nil {
@@ -120,6 +151,7 @@ func (s *MailService) access(ctx context.Context, userID string) (string, domain
 	access, err := s.zoho.RefreshAccessToken(ctx, credential.RefreshToken)
 	return access, credential, err
 }
+
 func identifier() (string, error) {
 	value := make([]byte, 24)
 	if _, err := rand.Read(value); err != nil {

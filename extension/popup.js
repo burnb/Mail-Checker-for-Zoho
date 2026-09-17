@@ -77,13 +77,12 @@ async function updateStatus() {
 
 // Update UI state
 async function updateUI() {
-    const data = await api.storage.local.get(["lastUnread", "authError", "jwt", "accountEmail", "accountId"]);
+    const data = await api.storage.local.get(["lastUnread", "authError", "jwt", "accountEmail"]);
 
     const userBar = document.getElementById("userBar");
     const mainContent = document.getElementById("mainContent");
     const userEmail = document.getElementById("userEmail");
-    const userAvatar = document.getElementById("userAvatar");
-    const accountId = document.getElementById("accountId");
+    const avatarInitial = document.getElementById("avatarInitial");
     const unreadBadge = document.getElementById("unreadBadge");
 
     if (!data.jwt) {
@@ -199,16 +198,8 @@ async function updateUI() {
                 window.close();
             };
 
-            const initial = data.accountEmail.substring(0, 1).toUpperCase();
-
-            // Safer way to verify if we just need to replace text
-            if (userAvatar.firstChild && userAvatar.firstChild.nodeType === Node.TEXT_NODE) {
-                userAvatar.firstChild.textContent = initial;
-            } else {
-                userAvatar.textContent = initial; // Reset content if complex
-            }
+            avatarInitial.textContent = data.accountEmail.substring(0, 1).toUpperCase();
         }
-        accountId.textContent = data.accountId ? `ID: ${data.accountId}` : "";
 
         // Update unread badge
         const count = data.lastUnread !== undefined ? data.lastUnread : "--";
@@ -265,8 +256,7 @@ async function loadList(folderId = null) {
         if (!folderId) {
             await api.storage.local.set({
                 lastItems: data.items,
-                accountEmail: data.account?.email,
-                accountId: data.account?.id
+                accountEmail: data.account?.email
             });
         }
 
@@ -312,6 +302,73 @@ async function loadFolders() {
     } catch (err) {
         console.error("Failed to load folders:", err);
     }
+}
+
+async function markRead(messageIds) {
+    if (messageIds.length === 0) return;
+
+    const { jwt } = await api.storage.local.get("jwt");
+    if (!jwt) return;
+
+    const backendUrl = await getBackendUrl();
+    const response = await fetch(`${backendUrl}/mail/read`, {
+        method: "PUT",
+        headers: {
+            Authorization: `Bearer ${jwt}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ messageIds })
+    });
+    if (!response.ok) {
+        throw new Error(`Failed to mark mail as read: ${response.status}`);
+    }
+
+    const { lastItems = [], lastUnread = 0 } = await api.storage.local.get(["lastItems", "lastUnread"]);
+    const markedIds = new Set(messageIds);
+    const items = lastItems.filter((item) => !markedIds.has(item.id));
+    const unread = Math.max(0, lastUnread - (lastItems.length - items.length));
+    await api.storage.local.set({ lastItems: items, lastUnread: unread });
+}
+
+async function handleMarkAllRead() {
+    const { lastItems = [] } = await api.storage.local.get("lastItems");
+    try {
+        await markRead(lastItems.map((item) => item.id));
+    } catch (error) {
+        console.error("Failed to mark all mail as read:", error);
+    }
+}
+
+async function messageHTML(item) {
+    if (item.html) return item.html;
+
+    const { jwt } = await api.storage.local.get("jwt");
+    if (!jwt || !item.folderId) {
+        throw new Error("Message content was not included in the event and cannot be requested without a folder ID");
+    }
+    const backendUrl = await getBackendUrl();
+    const url = new URL(`${backendUrl}/mail/messages/${encodeURIComponent(item.id)}/content`);
+    url.searchParams.set("folderId", item.folderId);
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${jwt}` } });
+    if (!response.ok) {
+        throw new Error(`Failed to load message content: ${response.status}`);
+    }
+    return (await response.json()).html;
+}
+
+async function openMessage(item) {
+    const html = await messageHTML(item);
+    const list = document.getElementById("mainContent");
+    clearContent(list);
+
+    const frame = document.createElement("iframe");
+    frame.className = "message-body";
+    frame.sandbox = "";
+    frame.srcdoc = html;
+    frame.title = item.subject || "Email message";
+    list.appendChild(frame);
+
+    await markRead([item.id]);
 }
 
 // Render mail list (DOM Safe)
@@ -389,13 +446,26 @@ async function renderList(items) {
         div.appendChild(avatarDiv);
         div.appendChild(contentDiv);
 
-        div.onclick = () => {
-            // Security: Only open Zoho mail links
-            if (item.link && item.link.startsWith("https://mail.zoho.")) {
-                api.tabs.create({ url: item.link });
-                window.close();
-            } else {
-                console.warn("Invalid mail link rejected:", item.link);
+        const markReadBtn = document.createElement("button");
+        markReadBtn.className = "mark-read-btn";
+        markReadBtn.type = "button";
+        markReadBtn.title = "Mark as read";
+        markReadBtn.textContent = "✓";
+        markReadBtn.onclick = async (event) => {
+            event.stopPropagation();
+            try {
+                await markRead([item.id]);
+            } catch (error) {
+                console.error("Failed to mark mail as read:", error);
+            }
+        };
+        div.appendChild(markReadBtn);
+
+        div.onclick = async () => {
+            try {
+                await openMessage(item);
+            } catch (error) {
+                console.error("Failed to open message:", error);
             }
         };
         list.appendChild(div);
@@ -422,6 +492,7 @@ async function handleRefresh() {
 // Event listeners
 document.getElementById("themeToggle").addEventListener("click", toggleTheme);
 document.getElementById("refreshBtn").addEventListener("click", handleRefresh);
+document.getElementById("markAllReadBtn").addEventListener("click", handleMarkAllRead);
 
 document.getElementById("menuBtn").addEventListener("click", (e) => {
     e.stopPropagation();

@@ -69,12 +69,14 @@ func NewFileCredentialStore(path, key string) (*FileCredentialStore, error) {
 	}
 	return store, nil
 }
+
 func (s *FileCredentialStore) Save(_ context.Context, id string, credential domain.Credential) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.records[id] = credential
 	return s.persist()
 }
+
 func (s *FileCredentialStore) persist() error {
 	persisted := map[string]domain.Credential{}
 	for id, record := range s.records {
@@ -102,6 +104,7 @@ func (s *FileCredentialStore) persist() error {
 	}
 	return os.WriteFile(s.path, data, 0600)
 }
+
 func (s *FileCredentialStore) Find(_ context.Context, id string) (domain.Credential, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -111,6 +114,7 @@ func (s *FileCredentialStore) Find(_ context.Context, id string) (domain.Credent
 	}
 	return credential, nil
 }
+
 func (s *FileCredentialStore) FindByAccountID(_ context.Context, accountID string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -121,17 +125,20 @@ func (s *FileCredentialStore) FindByAccountID(_ context.Context, accountID strin
 	}
 	return "", errors.New("credential not found")
 }
+
 func (s *FileCredentialStore) WebhookSecret(_ context.Context, accountID string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.webhookSecrets[accountID], nil
 }
+
 func (s *FileCredentialStore) SaveWebhookSecret(_ context.Context, accountID, secret string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.webhookSecrets[accountID] = secret
 	return s.persist()
 }
+
 func (s *FileCredentialStore) encrypt(value string) (string, error) {
 	gcm, err := cipher.NewGCM(s.block)
 	if err != nil {
@@ -143,6 +150,7 @@ func (s *FileCredentialStore) encrypt(value string) (string, error) {
 	}
 	return base64.RawURLEncoding.EncodeToString(append(nonce, gcm.Seal(nil, nonce, []byte(value), nil)...)), nil
 }
+
 func (s *FileCredentialStore) decrypt(value string) (string, error) {
 	raw, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil {

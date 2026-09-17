@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -30,17 +30,32 @@ type Handler struct {
 	allowedOrigins map[string]bool
 	webhookSecrets domain.WebhookSecretRepository
 	upgrader       websocket.Upgrader
+	log            *slog.Logger
 }
 
-func NewHandler(auth *application.AuthService, mail *application.MailService, webhooks *application.WebhookService, events *application.EventHub, tokens domain.TokenService, webhookSecrets domain.WebhookSecretRepository, origins string) *Handler {
+func NewHandler(
+	auth *application.AuthService, mail *application.MailService, webhooks *application.WebhookService,
+	events *application.EventHub, tokens domain.TokenService, webhookSecrets domain.WebhookSecretRepository,
+	origins string, log *slog.Logger) *Handler {
 	allowed := map[string]bool{}
 	for _, origin := range strings.Split(origins, ",") {
 		if origin = strings.TrimSpace(origin); origin != "" {
 			allowed[origin] = true
 		}
 	}
-	return &Handler{auth: auth, mail: mail, webhooks: webhooks, events: events, tokens: tokens, allowedOrigins: allowed, webhookSecrets: webhookSecrets, upgrader: websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return allowed[r.Header.Get("Origin")] }}}
+	return &Handler{
+		auth:           auth,
+		mail:           mail,
+		webhooks:       webhooks,
+		events:         events,
+		tokens:         tokens,
+		allowedOrigins: allowed,
+		webhookSecrets: webhookSecrets,
+		upgrader:       websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return allowed[r.Header.Get("Origin")] }},
+		log:            log,
+	}
 }
+
 func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.health)
@@ -50,12 +65,15 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /webhooks/zoho/{accountID}", h.zohoWebhook)
 	mux.HandleFunc("GET /mail/unread", h.authorize(h.unread))
 	mux.HandleFunc("GET /mail/unread/list", h.authorize(h.list))
+	mux.HandleFunc("GET /mail/messages/{messageID}/content", h.authorize(h.content))
+	mux.HandleFunc("PUT /mail/read", h.authorize(h.markRead))
 	mux.HandleFunc("GET /mail/folders", h.authorize(h.folders))
 	return h.cors(mux)
 }
 func (h *Handler) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
+
 func (h *Handler) eventsSocket(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.authorizedUser(r)
 	if !ok {
@@ -67,8 +85,8 @@ func (h *Handler) eventsSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer connection.Close()
-	log.Printf("WebSocket connected for user %s", userID)
-	defer log.Printf("WebSocket disconnected for user %s", userID)
+	h.log.Info("WebSocket connected", "userID", userID)
+	defer h.log.Info("WebSocket disconnected", "userID", userID)
 	events := h.events.Subscribe(r.Context(), userID)
 	ping := time.NewTicker(25 * time.Second)
 	defer ping.Stop()
@@ -89,50 +107,58 @@ func (h *Handler) eventsSocket(w http.ResponseWriter, r *http.Request) {
 		select {
 		case event := <-events:
 			if err := connection.WriteMessage(websocket.TextMessage, []byte(event)); err != nil {
-				log.Printf("WebSocket event delivery failed for user %s: %v", userID, err)
+				h.log.Error("WebSocket event delivery failed", "userID", userID, "error", err)
 				return
 			}
 		case <-ping.C:
 			if err := connection.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second)); err != nil {
-				log.Printf("WebSocket ping failed for user %s: %v", userID, err)
+				h.log.Error("WebSocket ping failed", "userID", userID, "error", err)
 				return
 			}
 		case err := <-readErrors:
-			log.Printf("WebSocket read ended for user %s: %v", userID, err)
+			h.log.Error("WebSocket read ended", "userID", userID, "error", err)
 			return
 		}
 	}
 }
+
 func (h *Handler) zohoWebhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err != nil {
+		h.log.Error("Failed to read webhook body", "error", err)
 		http.Error(w, "invalid webhook body", http.StatusBadRequest)
 		return
 	}
+
+	h.log.Debug("Received Zoho webhook", "body", string(body))
+
 	accountID := r.PathValue("accountID")
 	initialized, err := h.initializeWebhookSecret(r.Context(), accountID, r.Header.Get("X-Hook-Secret"))
 	if err != nil {
-		log.Printf("Zoho webhook rejected: %v", err)
+		h.log.Error("Zoho webhook rejected", "error", err)
 		http.Error(w, "invalid webhook configuration", http.StatusUnauthorized)
 		return
 	}
 	if initialized {
-		log.Printf("Zoho webhook secret initialized for account %s", accountID)
+		h.log.Info("Zoho webhook secret initialized", "accountID", accountID)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 	if !validWebhookSignatureForAccount(r.Context(), h.webhookSecrets, accountID, r.Header.Get("X-Hook-Signature"), body) {
-		log.Printf("Zoho webhook rejected: %v", err)
+		h.log.Error("Zoho webhook rejected", "error", err)
 		http.Error(w, "invalid webhook signature", http.StatusUnauthorized)
 		return
 	}
-	if err := h.webhooks.MailReceived(r.Context(), accountID); err != nil {
+
+	if err := h.webhooks.MailReceived(r.Context(), accountID, body); err != nil {
+		h.log.Error("Zoho webhook processing failed", "accountID", accountID, "error", err)
 		http.Error(w, "unknown account", http.StatusNotFound)
 		return
 	}
-	log.Printf("Zoho webhook accepted for account %s", accountID)
+	h.log.Debug("Zoho webhook accepted", "accountID", accountID)
 	w.WriteHeader(http.StatusNoContent)
 }
+
 func (h *Handler) startAuth(w http.ResponseWriter, r *http.Request) {
 	callback := r.URL.Query().Get("extension_callback")
 	if !h.validExtensionCallback(callback) {
@@ -146,16 +172,18 @@ func (h *Handler) startAuth(w http.ResponseWriter, r *http.Request) {
 	}
 	http.Redirect(w, r, authorizationURL, http.StatusFound)
 }
+
 func (h *Handler) finishAuth(w http.ResponseWriter, r *http.Request) {
 	callback, token, err := h.auth.Complete(r.Context(), r.URL.Query().Get("state"), r.URL.Query().Get("code"))
 	if err != nil {
-		log.Printf("OAuth callback failed: %v", err)
+		h.log.Error("OAuth callback failed", "error", err)
 		http.Error(w, "OAuth failed: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	redirect, err := url.Parse(callback)
 	if err != nil {
-		http.Error(w, "invalid callback", 500)
+		h.log.Error("Invalid OAuth callback", "error", err)
+		http.Error(w, "invalid callback", http.StatusInternalServerError)
 		return
 	}
 	query := redirect.Query()
@@ -163,16 +191,18 @@ func (h *Handler) finishAuth(w http.ResponseWriter, r *http.Request) {
 	redirect.RawQuery = query.Encode()
 	http.Redirect(w, r, redirect.String(), http.StatusFound)
 }
+
 func (h *Handler) authorize(next func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID, ok := h.authorizedUser(r)
 		if !ok {
-			writeJSON(w, 401, map[string]string{"error": "unauthorized"})
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 			return
 		}
 		next(w, r, userID)
 	}
 }
+
 func (h *Handler) authorizedUser(r *http.Request) (string, bool) {
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if token == "" {
@@ -185,14 +215,16 @@ func (h *Handler) authorizedUser(r *http.Request) (string, bool) {
 	userID, ok := claims["sub"].(string)
 	return userID, ok && userID != ""
 }
+
 func (h *Handler) unread(w http.ResponseWriter, r *http.Request, userID string) {
 	messages, err := h.mail.Unread(r.Context(), userID)
 	if err != nil {
 		h.mailError(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]int{"unread": len(messages)})
+	writeJSON(w, http.StatusOK, map[string]int{"unread": len(messages)})
 }
+
 func (h *Handler) list(w http.ResponseWriter, r *http.Request, userID string) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit < 1 || limit > 100 {
@@ -213,28 +245,56 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, userID string) {
 		h.mailError(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"items": messages, "account": map[string]string{"email": email, "id": accountID}})
+	writeJSON(w, http.StatusOK, map[string]any{"items": messages, "account": map[string]string{"email": email, "id": accountID}})
 }
+
+func (h *Handler) content(w http.ResponseWriter, r *http.Request, userID string) {
+	content, err := h.mail.Content(r.Context(), userID, r.URL.Query().Get("folderId"), r.PathValue("messageID"))
+	if err != nil {
+		h.mailError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"html": content})
+}
+
+func (h *Handler) markRead(w http.ResponseWriter, r *http.Request, userID string) {
+	var request struct {
+		MessageIDs []string `json:"messageIds"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&request); err != nil || len(request.MessageIDs) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "messageIds is required"})
+		return
+	}
+	if err := h.mail.MarkRead(r.Context(), userID, request.MessageIDs); err != nil {
+		h.mailError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) folders(w http.ResponseWriter, r *http.Request, userID string) {
 	folders, err := h.mail.Folders(r.Context(), userID)
 	if err != nil {
 		h.mailError(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"folders": folders})
+	writeJSON(w, http.StatusOK, map[string]any{"folders": folders})
 }
+
 func (h *Handler) mailError(w http.ResponseWriter, err error) {
 	if err == application.ErrUnauthorized {
-		writeJSON(w, 401, map[string]string{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
-	log.Printf("Zoho Mail request failed: %v", err)
+	h.log.Error("Zoho Mail request failed", "error", err)
 	http.Error(w, "Zoho Mail request failed: "+err.Error(), http.StatusBadGateway)
 }
+
 func (h *Handler) validExtensionCallback(callback string) bool {
 	parsed, err := url.Parse(callback)
 	return err == nil && (parsed.Scheme == "chrome-extension" || parsed.Scheme == "moz-extension") && strings.HasSuffix(parsed.Path, "/callback.html")
 }
+
 func (h *Handler) cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if h.allowedOrigins[r.Header.Get("Origin")] {
@@ -275,6 +335,7 @@ func validWebhookSignatureForAccount(ctx context.Context, secrets domain.Webhook
 	}
 	return err == nil && hmac.Equal(provided, mac.Sum(nil))
 }
+
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

@@ -226,6 +226,60 @@ function handleNotification(current, previous, lastNotifyTime) {
     api.storage.local.set({ lastNotificationTime: now });
 }
 
+function toMailListItem(mail) {
+    return {
+        id: String(mail.messageId),
+        folderId: mail.folderId || "",
+        fromName: mail.sender || "",
+        fromEmail: mail.fromAddress || "",
+        subject: mail.subject || "",
+        snippet: mail.summary || "",
+        receivedAt: new Date(mail.receivedTime || mail.sentDateInGMT || Date.now()).toISOString(),
+        link: "",
+        html: mail.html || mail.content || mail.body || ""
+    };
+}
+
+async function handleMailReceived(mail) {
+    if (!mail || mail.messageId === undefined) return;
+
+    const { settings = {}, lastNotificationTime, lastUnread, lastItems = [] } = await api.storage.local.get([
+        "settings", "lastNotificationTime", "lastUnread", "lastItems"
+    ]);
+    const mailItem = toMailListItem(mail);
+    const isNewMail = !lastItems.some((item) => item.id === mailItem.id);
+
+    if (isNewMail) {
+        const unread = (lastUnread || 0) + 1;
+        await api.storage.local.set({
+            lastUnread: unread,
+            lastItems: [mailItem, ...lastItems].slice(0, 50),
+            authError: false
+        });
+
+        if (settings.showBadge !== false) {
+            handleBadgeUpdate(unread);
+        } else {
+            updateBadge("");
+        }
+    }
+
+    if (settings.enableNotifications === false || !isNewMail) return;
+
+    const now = Date.now();
+    if (lastNotificationTime && now - lastNotificationTime < 60 * 1000) return;
+
+    api.notifications.create(NOTIFICATION_ID, {
+        type: "basic",
+        iconUrl: "icons/icon-128.png",
+        title: mail.sender || mail.fromAddress || "New Zoho Mail",
+        message: mail.subject || mail.summary || "You received a new email.",
+        priority: 2
+    });
+
+    await api.storage.local.set({ lastNotificationTime: now });
+}
+
 // Listen for messages from popup (e.g., "manual refresh" or "set token")
 api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.action === "refresh") {
@@ -279,27 +333,28 @@ async function connectEvents() {
         return;
     }
 
-	api.storage.local.set({ eventsConnected: false });
+    api.storage.local.set({ eventsConnected: false });
     const backendUrl = await getBackendUrl();
     const eventsUrl = new URL(`${backendUrl}/events`);
     eventsUrl.protocol = eventsUrl.protocol === "https:" ? "wss:" : "ws:";
     eventsUrl.searchParams.set("access_token", jwt);
     eventSocket = new WebSocket(eventsUrl);
-	eventSocketConnecting = false;
-	eventSocket.onopen = () => {
-		console.log("WebSocket connected");
-		api.storage.local.set({ eventsConnected: true });
-	};
+    eventSocketConnecting = false;
+    eventSocket.onopen = () => {
+        console.log("WebSocket connected");
+        api.storage.local.set({ eventsConnected: true });
+    };
     eventSocket.onmessage = (event) => {
         try {
-            if (JSON.parse(event.data).type === "mail.received") checkMail(true);
+            const message = JSON.parse(event.data);
+            handleMailReceived(message.mail || message);
         } catch (error) {
             console.error("Invalid server event", error);
         }
     };
     eventSocket.onclose = () => {
-		console.log("WebSocket disconnected");
-		api.storage.local.set({ eventsConnected: false });
+        console.log("WebSocket disconnected");
+        api.storage.local.set({ eventsConnected: false });
         eventSocket = null;
         eventSocketConnecting = false;
         setTimeout(connectEvents, 5000);

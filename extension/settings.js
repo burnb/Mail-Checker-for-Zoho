@@ -111,6 +111,6 @@ async function saveBackendUrl() {
             return;
         }
     }
-    await api.storage.local.remove(["jwt", "lastUnread", "lastItems", "accountEmail", "accountId", "authError"]);
+    await api.storage.local.remove(["jwt", "lastUnread", "lastItems", "accountEmail", "authError"]);
     await api.storage.local.set({ backendUrl: normalized, authError: false });
 }

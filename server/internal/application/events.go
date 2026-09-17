@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"mail-checker-server/internal/domain"
@@ -56,11 +57,11 @@ func NewWebhookService(credentials domain.CredentialRepository, events *EventHub
 	return &WebhookService{credentials: credentials, events: events}
 }
 
-func (s *WebhookService) MailReceived(ctx context.Context, accountID string) error {
+func (s *WebhookService) MailReceived(ctx context.Context, accountID string, data []byte) error {
 	userID, err := s.credentials.FindByAccountID(ctx, accountID)
 	if err != nil {
 		return ErrUnauthorized
 	}
-	s.events.Publish(userID, `{"type":"mail.received"}`)
+	s.events.Publish(userID, fmt.Sprintf(`{"type":"mail.received", "mail": %s}`, string(data)))
 	return nil
 }
