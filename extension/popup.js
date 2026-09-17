@@ -25,6 +25,10 @@ function clearContent(element) {
     }
 }
 
+function setListControlsVisible(visible) {
+    document.getElementById("markAllReadBtn").style.display = visible ? "block" : "none";
+}
+
 // Theme management
 function initTheme() {
     const savedTheme = localStorage.getItem("theme") || "default";
@@ -88,6 +92,7 @@ async function updateUI() {
     if (!data.jwt) {
         // No account at all
         userBar.style.display = "none";
+        setListControlsVisible(false);
         clearContent(mainContent);
 
         const authDiv = document.createElement("div");
@@ -122,6 +127,7 @@ async function updateUI() {
     } else if (data.authError) {
         // We have a token but backend says it's invalid
         userBar.style.display = "none";
+        setListControlsVisible(false);
         clearContent(mainContent);
 
         const isFirstSetup = (data.lastUnread === undefined);
@@ -177,6 +183,7 @@ async function updateUI() {
     } else {
         // Authenticated - show user bar and mail list
         userBar.style.display = "flex";
+        setListControlsVisible(true);
 
         // Apply visibility settings
         const settings = (await api.storage.local.get("settings")).settings || {};
@@ -212,7 +219,7 @@ async function updateUI() {
 }
 
 // Load mail list
-async function loadList(folderId = null) {
+async function loadList(folderId = null, force = false) {
     // Deduplication: prevent concurrent requests
     if (listLoading) {
         console.log("[loadList] Already loading, skipping");
@@ -230,11 +237,12 @@ async function loadList(folderId = null) {
     if (!folderId) lastListLoad = now;
 
     try {
-        const { jwt, lastItems, accountEmail } = await api.storage.local.get(["jwt", "lastItems", "accountEmail"]);
+        const { jwt, lastItems, lastListFetchedAt } = await api.storage.local.get(["jwt", "lastItems", "lastListFetchedAt"]);
 
-        // Optimistic render only on first load
-        if (lastItems && lastItems.length > 0 && !folderId) {
-            renderList(lastItems);
+        // Reuse the cached result, including a previously empty unread list.
+        if (!folderId && !force && lastListFetchedAt !== undefined) {
+            renderList(lastItems || []);
+            return;
         }
 
         if (!jwt) return;
@@ -256,7 +264,8 @@ async function loadList(folderId = null) {
         if (!folderId) {
             await api.storage.local.set({
                 lastItems: data.items,
-                accountEmail: data.account?.email
+                accountEmail: data.account?.email,
+                lastListFetchedAt: Date.now()
             });
         }
 
@@ -360,12 +369,24 @@ async function openMessage(item) {
     const html = await messageHTML(item);
     const list = document.getElementById("mainContent");
     clearContent(list);
+    setListControlsVisible(false);
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "message-toolbar";
+
+    const backButton = document.createElement("button");
+    backButton.className = "back-to-list-btn";
+    backButton.type = "button";
+    backButton.textContent = "Back to messages";
+    backButton.onclick = () => loadList();
+    toolbar.appendChild(backButton);
 
     const frame = document.createElement("iframe");
     frame.className = "message-body";
     frame.sandbox = "";
     frame.srcdoc = html;
     frame.title = item.subject || "Email message";
+    list.appendChild(toolbar);
     list.appendChild(frame);
 
     await markRead([item.id]);
@@ -376,6 +397,7 @@ async function renderList(items) {
     const settings = (await api.storage.local.get("settings")).settings || {};
     const list = document.getElementById("mainContent");
     clearContent(list);
+    setListControlsVisible(true);
 
     if (!items || items.length === 0) {
         const emptyState = document.createElement("div");
@@ -484,7 +506,7 @@ async function handleRefresh() {
         setTimeout(async () => {
             overlay.style.display = "none";
             refreshBtn.style.animation = "none";
-            await updateUI();
+            await loadList(null, true);
         }, 800);
     });
 }

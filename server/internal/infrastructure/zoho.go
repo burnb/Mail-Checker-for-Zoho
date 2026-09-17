@@ -172,11 +172,11 @@ func (z *ZohoClient) MarkRead(ctx context.Context, access, accountID string, mes
 	if len(messageIDs) == 0 {
 		return nil
 	}
-	body, err := json.Marshal(map[string]any{"messageId": messageIDs, "mode": "read"})
+	body, err := json.Marshal(map[string]any{"messageId": messageIDs, "mode": "markAsRead"})
 	if err != nil {
 		return err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPut, "https://mail.zoho.com/api/accounts/"+url.PathEscape(accountID)+"/messages/flag", strings.NewReader(string(body)))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut, "https://mail.zoho.com/api/accounts/"+url.PathEscape(accountID)+"/updatemessage", strings.NewReader(string(body)))
 	if err != nil {
 		return err
 	}
