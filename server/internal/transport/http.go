@@ -82,6 +82,7 @@ func (h *Handler) eventsSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	connection, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		h.log.Error("WebSocket upgrade failed", "userID", userID, "origin", r.Header.Get("Origin"), "error", err)
 		return
 	}
 	defer connection.Close()

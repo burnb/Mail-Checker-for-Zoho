@@ -43,6 +43,16 @@ api.storage.onChanged.addListener((changes, area) => {
         checkMail(true);
         connectEvents();
     }
+
+    if (area === "local" && changes.lastUnread) {
+        api.storage.local.get("settings").then(({ settings = {} }) => {
+            if (settings.showBadge !== false) {
+                handleBadgeUpdate(changes.lastUnread.newValue || 0);
+            } else {
+                updateBadge("");
+            }
+        });
+    }
 });
 
 // Alarm persistence and startup fetch for Edge
@@ -241,7 +251,12 @@ function toMailListItem(mail) {
 }
 
 async function handleMailReceived(mail) {
-    if (!mail || mail.messageId === undefined) return;
+    if (!mail || mail.messageId === undefined) {
+        // Zoho's webhook payload doesn't carry full message fields, just fetch fresh state instead.
+        console.log("mail.received event had no message details, forcing refresh");
+        checkMail(true);
+        return;
+    }
 
     const { settings = {}, lastNotificationTime, lastUnread, lastItems = [] } = await api.storage.local.get([
         "settings", "lastNotificationTime", "lastUnread", "lastItems"

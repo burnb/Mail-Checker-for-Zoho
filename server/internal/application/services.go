@@ -53,9 +53,14 @@ func (s *AuthService) Complete(ctx context.Context, state, code string) (string,
 
 	s.log.Info("Webhook URL", "url", fmt.Sprintf("%s/webhooks/zoho/%s", s.host, credential.AccountID))
 
-	userID, err := identifier()
+	// Reuse the existing userID for this Zoho account, otherwise duplicate
+	// records accumulate and webhook delivery races between them.
+	userID, err := s.credentials.FindByAccountID(ctx, credential.AccountID)
 	if err != nil {
-		return "", "", err
+		userID, err = identifier()
+		if err != nil {
+			return "", "", err
+		}
 	}
 	if err := s.credentials.Save(ctx, userID, credential); err != nil {
 		return "", "", err

@@ -17,6 +17,7 @@ let listLoading = false;
 let foldersLoading = false;
 let lastListLoad = 0;
 const LIST_DEBOUNCE_MS = 500; // Min 500ms between list loads
+let viewingMessage = false; // true while a single message is open, to avoid the list refresh closing it
 
 // Helper to clear syntax safety
 function clearContent(element) {
@@ -370,6 +371,7 @@ async function openMessage(item) {
     const list = document.getElementById("mainContent");
     clearContent(list);
     setListControlsVisible(false);
+    viewingMessage = true;
 
     const toolbar = document.createElement("div");
     toolbar.className = "message-toolbar";
@@ -378,7 +380,10 @@ async function openMessage(item) {
     backButton.className = "back-to-list-btn";
     backButton.type = "button";
     backButton.textContent = "Back to messages";
-    backButton.onclick = () => loadList();
+    backButton.onclick = () => {
+        viewingMessage = false;
+        loadList();
+    };
     toolbar.appendChild(backButton);
 
     const frame = document.createElement("iframe");
@@ -560,10 +565,12 @@ document.getElementById("signOutBtn").addEventListener("click", () => {
 
 // Storage change listener
 api.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && (changes.lastUnread || changes.authError || changes.jwt)) {
+    if (area !== "local") return;
+    // Don't refresh/replace the list while a message is open, or markRead() would close it
+    if (!viewingMessage && (changes.lastUnread || changes.authError || changes.jwt)) {
         updateUI();
     }
-    if (area === "local" && changes.eventsConnected) updateStatus();
+    if (changes.eventsConnected) updateStatus();
 });
 
 // Initialize
