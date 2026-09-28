@@ -4,17 +4,18 @@
   <meta charset="UTF-8">
   <style>
     :root {
-      --zoho-blue: #1178D2;
+      --zoho-accent: #ffce34;
       --zoho-red: #EF4444;
       --text-main: #E2E8F0;
       --text-sub: #94A3B8;
-      --bg-body: #0F172A;
-      --bg-header: #1E293B;
-      --bg-light: #334155;
-      --border-color: #334155;
-      --user-bar-bg: #1E293B;
-      --mail-hover: #1E293B;
-      --mail-unread-bg: #0F172A;
+      --text-dark: #1a1d21;
+      --bg-body: #1a1d21;
+      --bg-header: #2f353c;
+      --bg-light: #2f353c;
+      --border-color: #1a1d21;
+      --user-bar-bg: #2f353c;
+      --mail-hover: #2f353c;
+      --mail-unread-bg: #1a1d21;
     }
 
     [data-theme="light-popup"] {
@@ -32,9 +33,8 @@
     * { box-sizing: border-box; margin: 0; padding: 0; transition: background-color 0.2s, color 0.2s; }
 
     body {
-      width: 600px;
-      max-width: 600px;
-      min-height: 350px;
+      width: 700px;
+      min-height: 260px;
       max-height: 500px;
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       background: var(--bg-body);
@@ -57,7 +57,7 @@
       flex-shrink: 0;
     }
 
-    .brand-left { display: flex; align-items: center; gap: 10px; color: var(--zoho-blue); }
+    .brand-left { display: flex; align-items: center; gap: 10px; color: var(--zoho-accent); }
     .brand-name { font-size: 19px; font-weight: 400; color: var(--text-main); }
 
     .user-account-bar {
@@ -76,13 +76,13 @@
     .user-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
     .user-avatar {
       width: 34px; height: 34px;
-      background: var(--zoho-blue);
+      background: var(--zoho-accent);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 700;
-      color: #FFFFFF;
+      color: var(--text-dark);
       font-size: 13px;
       flex-shrink: 0;
       border: 2px solid var(--bg-body);
@@ -136,18 +136,23 @@
       background-position: right 8px center;
       padding-right: 28px;
     }
-    .folder-select:hover { border-color: var(--zoho-blue); }
+    .folder-select:hover { border-color: var(--zoho-accent); }
 
     .unread-badge {
-      background: var(--zoho-blue);
-      color: #FFFFFF;
+      background: var(--zoho-accent);
+      color: var(--text-dark);
       font-size: 13px;
       font-weight: 700;
       padding: 4px 14px;
+      border: none;
       border-radius: 20px;
       flex-shrink: 0;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      cursor: pointer;
+      font-family: inherit;
     }
+    .unread-badge:hover:not(:disabled) { filter: brightness(0.95); }
+    .unread-badge:disabled { cursor: default; opacity: 0.6; }
 
     .header-actions { display: flex; align-items: center; gap: 4px; position: relative; }
     .icon-btn {
@@ -161,7 +166,7 @@
       color: var(--text-sub);
       cursor: pointer;
     }
-    .icon-btn:hover { background: var(--bg-light); color: var(--zoho-blue); }
+    .icon-btn:hover { background: var(--bg-light); color: var(--zoho-accent); }
 
     .dropdown-menu {
       position: absolute;
@@ -183,7 +188,7 @@
       cursor: pointer;
       color: var(--text-main);
     }
-    .menu-item:hover { background: var(--bg-light); color: var(--zoho-blue); }
+    .menu-item:hover { background: var(--bg-light); color: var(--zoho-accent); }
     .menu-item.danger { color: var(--zoho-red); font-weight: 600; }
 
     .content {
@@ -198,21 +203,26 @@
       background: #FFFFFF;
     }
     .message-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       padding: 8px 12px;
       border-bottom: 1px solid var(--border-color);
       background: var(--bg-header);
     }
-    .back-to-list-btn {
-      border: 0;
-      border-radius: 6px;
-      padding: 8px 10px;
-      background: transparent;
-      color: var(--zoho-blue);
-      cursor: pointer;
-      font-size: 13px;
+    .message-title {
+      flex: 1;
+      min-width: 0;
+      font-size: 14px;
       font-weight: 700;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
     }
-    .back-to-list-btn:hover { background: var(--bg-light); }
+    .message-title:hover { color: var(--zoho-accent); }
+    .back-to-list-btn { flex-shrink: 0; }
 
     .mail-item {
       display: flex;
@@ -230,7 +240,7 @@
       position: absolute;
       left: 0; top: 0; bottom: 0;
       width: 4px;
-      background: var(--zoho-blue);
+      background: var(--zoho-accent);
     }
 
     .mail-item.is-read {
@@ -257,12 +267,12 @@
       opacity: 0;
     }
     .mail-item:hover .mark-read-btn, .mark-read-btn:focus { opacity: 1; }
-    .mark-read-btn:hover { background: var(--bg-light); color: var(--zoho-blue); }
+    .mark-read-btn:hover { background: var(--bg-light); color: var(--zoho-accent); }
 
     .mail-avatar {
       width: 34px; height: 34px;
       background: var(--bg-light);
-      color: var(--zoho-blue);
+      color: var(--zoho-accent);
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -350,7 +360,7 @@
       line-height: 1.5;
     }
     .btn-primary {
-      background: var(--zoho-blue);
+      background: var(--zoho-accent);
       color: #FFFFFF;
       padding: 12px 24px;
       border: none;
@@ -381,7 +391,7 @@
       padding: 14px;
       background: transparent;
       border: none;
-      color: var(--zoho-blue);
+      color: var(--zoho-accent);
       font-size: 13px;
       font-weight: 700;
       cursor: pointer;
@@ -394,22 +404,10 @@
     .load-more-btn:hover {
       background: var(--bg-light);
     }
-    .mark-all-read-btn {
-      width: 100%;
-      padding: 12px;
-      border: 0;
-      border-bottom: 1px solid var(--border-color);
-      background: transparent;
-      color: var(--zoho-blue);
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 700;
-    }
-    .mark-all-read-btn:hover { background: var(--bg-light); }
     .load-more-btn.loading .spinner {
       width: 14px;
       height: 14px;
-      border: 2px solid var(--zoho-blue);
+      border: 2px solid var(--zoho-accent);
       border-radius: 50%;
       border-top-color: transparent;
       animation: spin 0.6s linear infinite;
@@ -428,7 +426,7 @@
       justify-content: center;
       align-items: center;
     }
-    .loading-spin { animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite; color: var(--zoho-blue); }
+    .loading-spin { animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite; color: var(--zoho-accent); }
     @keyframes spin { 100% { transform: rotate(360deg); } }
 
     ::-webkit-scrollbar { width: 6px; }
@@ -442,7 +440,7 @@
       <svg class="loading-spin" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
       </svg>
-      <p style="font-size: 15px; margin-top: 16px; font-weight: 700; color: var(--zoho-blue);">Updating...</p>
+      <p style="font-size: 15px; margin-top: 16px; font-weight: 700; color: var(--zoho-accent);">Updating...</p>
     </div>
   </div>
 
@@ -489,10 +487,8 @@
         </select>
       </div>
     </div>
-    <div class="unread-badge" id="unreadBadge">-- Unread</div>
+    <button class="unread-badge" id="unreadBadge" type="button" title="Mark all as read">-- Unread</button>
   </div>
-
-  <button id="markAllReadBtn" class="mark-all-read-btn" type="button">Mark all as read</button>
 
   <main class="content">
     <div id="mainContent"></div>

@@ -2,6 +2,8 @@ const api = typeof browser !== "undefined" ? browser : chrome;
 
 const NOTIFICATION_ID = "new-mail-notify";
 const EVENTS_ALARM = "ensure-events-connected";
+const POLL_ALARM = "poll-unread";
+const POLL_PERIOD_MINUTES = 2; // Catches mail read elsewhere, since Zoho sends no "read" webhook
 let eventSocket = null;
 let eventSocketConnecting = false;
 
@@ -29,12 +31,14 @@ api.runtime.onInstalled.addListener(async () => {
     }
 
     api.alarms.create(EVENTS_ALARM, { periodInMinutes: 0.5 });
+    api.alarms.create(POLL_ALARM, { periodInMinutes: POLL_PERIOD_MINUTES });
     checkMail(true);
     connectEvents();
 });
 
 api.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === EVENTS_ALARM) connectEvents();
+    if (alarm.name === POLL_ALARM) checkMail();
 });
 
 // Listen for JWT storage to activate live mail events after OAuth.
@@ -158,6 +162,12 @@ async function checkMail(force = false, retryCount = 0) {
             lastUnread: unread,
             authError: false
         });
+
+        // Count changed (e.g. a message was read elsewhere) but we didn't fetch the
+        // updated list, so drop the cached one; the popup will fetch a fresh list.
+        if (previousUnread !== undefined && previousUnread !== unread) {
+            await api.storage.local.remove("lastListFetchedAt");
+        }
 
         // Notification logic AFTER state is stable
         if (settings.enableNotifications !== false) {

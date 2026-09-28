@@ -6,16 +6,16 @@
   <title>Zoho Mail Settings</title>
   <style>
     :root {
-      --zoho-blue: #1178D2;
+      --zoho-accent: #ffce34;
       --zoho-red: #EF4444;
       --text-main: #E2E8F0;
       --text-sub: #94A3B8;
-      --bg-body: #0F172A;
-      --bg-header: #1E293B;
-      --bg-card: #1E293B;
-      --bg-light: #334155;
-      --border-color: #334155;
-      --input-bg: #334155;
+      --bg-body: #1a1d21;
+      --bg-header: #2f353c;
+      --bg-card: #2f353c;
+      --bg-light: #2f353c;
+      --border-color: #1a1d21;
+      --input-bg: #1a1d21;
     }
 
     [data-theme="light-popup"] {
@@ -32,9 +32,8 @@
     * { box-sizing: border-box; margin: 0; padding: 0; transition: all 0.2s; }
 
     body {
-      width: 600px;
-      max-width: 600px;
-      min-height: 350px;
+      width: 700px;
+      min-height: 260px;
       max-height: 500px;
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       background: var(--bg-body);
@@ -59,7 +58,7 @@
       z-index: 100;
     }
 
-    .brand-left { display: flex; align-items: center; gap: 10px; color: var(--zoho-blue); cursor: pointer; }
+    .brand-left { display: flex; align-items: center; gap: 10px; color: var(--zoho-accent); cursor: pointer; }
     .brand-name { font-size: 17px; font-weight: 700; color: var(--text-main); }
 
     .main-container {
@@ -147,7 +146,7 @@
       transition: .3s;
       border-radius: 50%;
     }
-    input:checked + .slider { background-color: var(--zoho-blue); }
+    input:checked + .slider { background-color: var(--zoho-accent); }
     input:checked + .slider:before { transform: translateX(16px); }
 
     select, input[type="number"] {
@@ -264,7 +263,7 @@
     </div>
 
     <div class="footer">
-      Zoho Mail Extension v1.0
+      Zoho Mail Checker v1.0
     </div>
   </div>
 

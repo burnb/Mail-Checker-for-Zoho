@@ -29,7 +29,7 @@ function clearContent(element) {
 }
 
 function setListControlsVisible(visible) {
-    document.getElementById("markAllReadBtn").style.display = visible ? "block" : "none";
+    document.getElementById("unreadBadge").style.display = visible ? "block" : "none";
 }
 
 // Theme management
@@ -387,6 +387,24 @@ async function messageHTML(item) {
     return (await response.json()).html;
 }
 
+// Builds the arrow icon used by the icon-btn buttons (theme/refresh/back)
+function createBackIcon() {
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("width", "18");
+    svg.setAttribute("height", "18");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2.5");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    const path = document.createElementNS(svgNS, "path");
+    path.setAttribute("d", "M19 12H5M12 19l-7-7 7-7");
+    svg.appendChild(path);
+    return svg;
+}
+
 async function openMessage(item) {
     const html = await messageHTML(item);
     const list = document.getElementById("mainContent");
@@ -398,14 +416,27 @@ async function openMessage(item) {
     toolbar.className = "message-toolbar";
 
     const backButton = document.createElement("button");
-    backButton.className = "back-to-list-btn";
+    backButton.className = "icon-btn back-to-list-btn";
     backButton.type = "button";
-    backButton.textContent = "Back to messages";
+    backButton.title = "Back to messages";
+    backButton.appendChild(createBackIcon());
     backButton.onclick = () => {
         viewingMessage = false;
         renderList(currentListItems);
     };
     toolbar.appendChild(backButton);
+
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "message-title";
+    titleSpan.textContent = item.subject || "(no subject)";
+    titleSpan.title = "Open in Zoho Mail";
+    titleSpan.onclick = () => {
+        // Fall back to a link built from folder/message ids when the list didn't include one (e.g. websocket events)
+        const link = item.link || `https://mail.zoho.com/zm/#mail/folder/${encodeURIComponent(item.folderId || "inbox")}/p/${encodeURIComponent(item.id)}`;
+        api.tabs.create({ url: link });
+        window.close();
+    };
+    toolbar.appendChild(titleSpan);
 
     const frame = document.createElement("iframe");
     frame.className = "message-body";
@@ -423,10 +454,10 @@ async function renderList(items) {
     const settings = (await api.storage.local.get("settings")).settings || {};
     const list = document.getElementById("mainContent");
     clearContent(list);
-    setListControlsVisible(true);
     currentListItems = items || [];
 
     if (!items || items.length === 0) {
+        setListControlsVisible(false);
         const emptyState = document.createElement("div");
         emptyState.className = "empty-state";
 
@@ -444,6 +475,8 @@ async function renderList(items) {
         list.appendChild(emptyState);
         return;
     }
+
+    setListControlsVisible(true);
 
     items.forEach(item => {
         const div = document.createElement("div");
@@ -546,7 +579,7 @@ async function handleRefresh() {
 // Event listeners
 document.getElementById("themeToggle").addEventListener("click", toggleTheme);
 document.getElementById("refreshBtn").addEventListener("click", handleRefresh);
-document.getElementById("markAllReadBtn").addEventListener("click", handleMarkAllRead);
+document.getElementById("unreadBadge").addEventListener("click", handleMarkAllRead);
 
 document.getElementById("menuBtn").addEventListener("click", (e) => {
     e.stopPropagation();
@@ -607,6 +640,12 @@ api.storage.onChanged.addListener((changes, area) => {
         // it stable so mail marked read stays visible (styled read) until the popup closes.
         if (!viewingMessage && currentListItems === null) {
             updateUI();
+        }
+    } else if (changes.lastListFetchedAt && changes.lastListFetchedAt.newValue === undefined) {
+        // Background poll invalidated the cache (unread count changed elsewhere, e.g. mail
+        // was read in another client); force a fresh list fetch if a list is already showing.
+        if (!viewingMessage && currentListItems !== null) {
+            loadList(null, true);
         }
     }
 
