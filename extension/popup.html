@@ -233,6 +233,18 @@
       background: var(--zoho-blue);
     }
 
+    .mail-item.is-read {
+      background: transparent;
+    }
+    .mail-item.is-read::before {
+      display: none;
+    }
+    .mail-item.is-read .sender,
+    .mail-item.is-read .subject {
+      font-weight: 400;
+      color: var(--text-sub);
+    }
+
     .mark-read-btn {
       width: 30px;
       height: 30px;

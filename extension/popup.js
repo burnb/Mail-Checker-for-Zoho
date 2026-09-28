@@ -18,6 +18,8 @@ let foldersLoading = false;
 let lastListLoad = 0;
 const LIST_DEBOUNCE_MS = 500; // Min 500ms between list loads
 let viewingMessage = false; // true while a single message is open, to avoid the list refresh closing it
+let sessionReadIds = new Set(); // ids marked read this popup session; stay visible (styled read) until popup closes
+let currentListItems = null; // items backing the currently rendered list, reused when returning from a message
 
 // Helper to clear syntax safety
 function clearContent(element) {
@@ -238,10 +240,14 @@ async function loadList(folderId = null, force = false) {
     if (!folderId) lastListLoad = now;
 
     try {
-        const { jwt, lastItems, lastListFetchedAt } = await api.storage.local.get(["jwt", "lastItems", "lastListFetchedAt"]);
+        const { jwt, lastItems, lastListFetchedAt, lastUnread } = await api.storage.local.get(["jwt", "lastItems", "lastListFetchedAt", "lastUnread"]);
+
+        // Cache is stale if the badge reports unread mail but no items were cached for it
+        // (e.g. background poll updated the count on browser startup without fetching the list).
+        const cacheStale = (lastUnread || 0) > 0 && (!lastItems || lastItems.length === 0);
 
         // Reuse the cached result, including a previously empty unread list.
-        if (!folderId && !force && lastListFetchedAt !== undefined) {
+        if (!folderId && !force && !cacheStale && lastListFetchedAt !== undefined) {
             renderList(lastItems || []);
             return;
         }
@@ -314,8 +320,18 @@ async function loadFolders() {
     }
 }
 
+// Visually mark an item as read in place, without removing it from the list
+function markItemReadInDom(id) {
+    const el = document.querySelector(`.mail-item[data-id="${CSS.escape(String(id))}"]`);
+    if (!el) return;
+    el.classList.add("is-read");
+    const btn = el.querySelector(".mark-read-btn");
+    if (btn) btn.remove();
+}
+
 async function markRead(messageIds) {
-    if (messageIds.length === 0) return;
+    const idsToMark = messageIds.filter((id) => !sessionReadIds.has(id));
+    if (idsToMark.length === 0) return;
 
     const { jwt } = await api.storage.local.get("jwt");
     if (!jwt) return;
@@ -327,14 +343,19 @@ async function markRead(messageIds) {
             Authorization: `Bearer ${jwt}`,
             "Content-Type": "application/json"
         },
-        body: JSON.stringify({ messageIds })
+        body: JSON.stringify({ messageIds: idsToMark })
     });
     if (!response.ok) {
         throw new Error(`Failed to mark mail as read: ${response.status}`);
     }
 
+    idsToMark.forEach((id) => {
+        sessionReadIds.add(id);
+        markItemReadInDom(id);
+    });
+
     const { lastItems = [], lastUnread = 0 } = await api.storage.local.get(["lastItems", "lastUnread"]);
-    const markedIds = new Set(messageIds);
+    const markedIds = new Set(idsToMark);
     const items = lastItems.filter((item) => !markedIds.has(item.id));
     const unread = Math.max(0, lastUnread - (lastItems.length - items.length));
     await api.storage.local.set({ lastItems: items, lastUnread: unread });
@@ -382,7 +403,7 @@ async function openMessage(item) {
     backButton.textContent = "Back to messages";
     backButton.onclick = () => {
         viewingMessage = false;
-        loadList();
+        renderList(currentListItems);
     };
     toolbar.appendChild(backButton);
 
@@ -403,6 +424,7 @@ async function renderList(items) {
     const list = document.getElementById("mainContent");
     clearContent(list);
     setListControlsVisible(true);
+    currentListItems = items || [];
 
     if (!items || items.length === 0) {
         const emptyState = document.createElement("div");
@@ -426,6 +448,8 @@ async function renderList(items) {
     items.forEach(item => {
         const div = document.createElement("div");
         div.className = "mail-item";
+        div.dataset.id = item.id;
+        if (sessionReadIds.has(item.id)) div.classList.add("is-read");
 
         const avatarInitial = (item.fromName || item.fromEmail || "U")[0].toUpperCase();
         const timeStr = formatMailDate(item.receivedAt);
@@ -473,20 +497,22 @@ async function renderList(items) {
         div.appendChild(avatarDiv);
         div.appendChild(contentDiv);
 
-        const markReadBtn = document.createElement("button");
-        markReadBtn.className = "mark-read-btn";
-        markReadBtn.type = "button";
-        markReadBtn.title = "Mark as read";
-        markReadBtn.textContent = "✓";
-        markReadBtn.onclick = async (event) => {
-            event.stopPropagation();
-            try {
-                await markRead([item.id]);
-            } catch (error) {
-                console.error("Failed to mark mail as read:", error);
-            }
-        };
-        div.appendChild(markReadBtn);
+        if (!sessionReadIds.has(item.id)) {
+            const markReadBtn = document.createElement("button");
+            markReadBtn.className = "mark-read-btn";
+            markReadBtn.type = "button";
+            markReadBtn.title = "Mark as read";
+            markReadBtn.textContent = "✓";
+            markReadBtn.onclick = async (event) => {
+                event.stopPropagation();
+                try {
+                    await markRead([item.id]);
+                } catch (error) {
+                    console.error("Failed to mark mail as read:", error);
+                }
+            };
+            div.appendChild(markReadBtn);
+        }
 
         div.onclick = async () => {
             try {
@@ -511,6 +537,7 @@ async function handleRefresh() {
         setTimeout(async () => {
             overlay.style.display = "none";
             refreshBtn.style.animation = "none";
+            sessionReadIds.clear();
             await loadList(null, true);
         }, 800);
     });
@@ -566,10 +593,23 @@ document.getElementById("signOutBtn").addEventListener("click", () => {
 // Storage change listener
 api.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-    // Don't refresh/replace the list while a message is open, or markRead() would close it
-    if (!viewingMessage && (changes.lastUnread || changes.authError || changes.jwt)) {
-        updateUI();
+
+    if (changes.authError || changes.jwt) {
+        // Don't refresh/replace the list while a message is open, or markRead() would close it
+        if (!viewingMessage) updateUI();
+    } else if (changes.lastUnread) {
+        const unreadBadge = document.getElementById("unreadBadge");
+        if (unreadBadge) {
+            const count = changes.lastUnread.newValue !== undefined ? changes.lastUnread.newValue : "--";
+            unreadBadge.textContent = `${count} Unread`;
+        }
+        // Reload the list only if it hasn't been rendered yet this session; otherwise keep
+        // it stable so mail marked read stays visible (styled read) until the popup closes.
+        if (!viewingMessage && currentListItems === null) {
+            updateUI();
+        }
     }
+
     if (changes.eventsConnected) updateStatus();
 });
 
