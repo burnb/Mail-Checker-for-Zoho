@@ -1,4 +1,5 @@
 const api = typeof browser !== "undefined" ? browser : chrome;
+const NOTIFICATION_ID = "new-mail-notify";
 
 async function getBackendUrl() {
     const { backendUrl } = await api.storage.local.get("backendUrl");
@@ -349,6 +350,9 @@ async function markRead(messageIds) {
         throw new Error(`Failed to mark mail as read: ${response.status}`);
     }
 
+    // Reading a message clears the toast for it, even if unread mail remains
+    api.notifications.clear(NOTIFICATION_ID);
+
     idsToMark.forEach((id) => {
         sessionReadIds.add(id);
         markItemReadInDom(id);
@@ -406,6 +410,10 @@ function createBackIcon() {
 }
 
 async function openMessage(item) {
+    // Fire mark-as-read immediately (in parallel with body loading) so the result isn't
+    // lost if the popup is closed before the body finishes loading.
+    const markReadPromise = markRead([item.id]).catch((err) => console.error("Failed to mark message as read:", err));
+
     const html = await messageHTML(item);
     const list = document.getElementById("mainContent");
     clearContent(list);
@@ -446,7 +454,7 @@ async function openMessage(item) {
     list.appendChild(toolbar);
     list.appendChild(frame);
 
-    await markRead([item.id]);
+    await markReadPromise;
 }
 
 // Render mail list (DOM Safe)

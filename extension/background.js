@@ -56,6 +56,11 @@ api.storage.onChanged.addListener((changes, area) => {
                 updateBadge("");
             }
         });
+
+        // No unread mail left (e.g. read elsewhere and caught by the next poll) - drop the stale toast
+        if (!changes.lastUnread.newValue) {
+            api.notifications.clear(NOTIFICATION_ID);
+        }
     }
 });
 
